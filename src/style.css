@@ -1,0 +1,1 @@
+body{margin:0;background:#f5f7f8;font-family:Inter,system-ui,sans-serif}.shell{min-height:100vh}.top{display:flex;justify-content:space-between;align-items:center;padding:0 28px}.brand{color:white;font-size:19px;font-weight:650}.content{width:min(100% - 36px,1000px);margin:36px auto}
