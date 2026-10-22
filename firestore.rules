@@ -1,57 +1,107 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
-    function memberPath(orgId) { return /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid); }
-    function member(orgId) { return signedIn() && exists(memberPath(orgId)); }
-    function role(orgId) { return get(memberPath(orgId)).data.role; }
-    function admin(orgId) { return member(orgId) && role(orgId) == 'admin'; }
-    function editor(orgId) { return member(orgId) && role(orgId) in ['editor', 'admin']; }
-    function canReadProject(orgId, data) {
-      return data.visibility == 'public' || admin(orgId) ||
-        (member(orgId) && request.auth.uid in data.authorizedUserIds);
+    function isMember(orgId) {
+      return request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
-    function validProject(data) {
-      return data.keys().hasOnly(['title','shortDescription','status','visibility','authorizedUserIds','createdBy','createdAt','updatedAt'])
-        && data.title is string && data.title.size() > 0 && data.title.size() <= 160
-        && data.shortDescription is string && data.shortDescription.size() <= 4000
-        && data.status in ['draft','proposed','approved','completed']
-        && data.visibility in ['public','private']
-        && data.authorizedUserIds is list && data.authorizedUserIds.size() <= 100
-        && data.createdBy is string
-        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    function canEdit(orgId) {
+      return isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in ['editor', 'admin'];
     }
-    match /users/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
-      allow write: if false; // Provision user profiles through trusted administration when needed.
+    function validTitle(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 160;
     }
     match /organizations/{orgId} {
-      allow get: if true; // Only non-sensitive name/labels belong on this document.
-      allow list, create, update, delete: if false; // Tenant provisioning is administrative.
+      allow get: if true;
+      allow list, write: if false;
       match /members/{uid} {
-        allow get: if signedIn() && (request.auth.uid == uid || admin(orgId));
-        allow list: if admin(orgId);
-        allow create, update, delete: if false; // Provision through Firebase Admin SDK.
+        allow get: if request.auth != null && request.auth.uid == uid;
+        allow list, write: if false;
       }
       match /projects/{projectId} {
-        allow get, list: if canReadProject(orgId, resource.data);
-        allow create: if editor(orgId) && validProject(request.resource.data)
+        allow get, list: if isMember(orgId) || resource.data.visibility == 'public';
+        allow create: if canEdit(orgId)
           && request.resource.data.status == 'draft'
           && request.resource.data.visibility == 'private'
           && request.resource.data.createdBy == request.auth.uid
-          && request.auth.uid in request.resource.data.authorizedUserIds
-          && request.resource.data.createdAt == request.time
-          && request.resource.data.updatedAt == request.time;
-        // Slice 1: only edit text, not lifecycle, visibility, ownership or ACL.
-        allow update: if editor(orgId) && canReadProject(orgId, resource.data)
-          && validProject(request.resource.data)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','updatedAt'])
-          && request.resource.data.updatedAt == request.time;
-        allow delete: if false;
+          && validTitle(request.resource.data);
+        allow update: if canEdit(orgId)
+          && resource.data.status != 'closed'
+          && resource.data.get('archived', false) == false
+          && validTitle(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','updatedAt'])
+          && (!request.resource.data.keys().hasAny(['shortDescription']) || (request.resource.data.shortDescription is string && request.resource.data.shortDescription.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['longDescription']) || (request.resource.data.longDescription is string && request.resource.data.longDescription.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['purpose']) || (request.resource.data.purpose is string && request.resource.data.purpose.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['leadDeacon']) || (request.resource.data.leadDeacon is string && request.resource.data.leadDeacon.size() <= 160))
+          && (!request.resource.data.keys().hasAny(['teamMembers']) || (request.resource.data.teamMembers is string && request.resource.data.teamMembers.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['stakeholders']) || (request.resource.data.stakeholders is string && request.resource.data.stakeholders.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['kickoffDate']) || (request.resource.data.kickoffDate is string && request.resource.data.kickoffDate.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['targetDate']) || (request.resource.data.targetDate is string && request.resource.data.targetDate.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['actualDate']) || (request.resource.data.actualDate is string && request.resource.data.actualDate.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['expectedOutcome']) || (request.resource.data.expectedOutcome is string && request.resource.data.expectedOutcome.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['deliverables']) || (request.resource.data.deliverables is string && request.resource.data.deliverables.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['assumptions']) || (request.resource.data.assumptions is string && request.resource.data.assumptions.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['barriers']) || (request.resource.data.barriers is string && request.resource.data.barriers.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['accomplishments']) || (request.resource.data.accomplishments is string && request.resource.data.accomplishments.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['nextSteps']) || (request.resource.data.nextSteps is string && request.resource.data.nextSteps.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['decisionsNeeded']) || (request.resource.data.decisionsNeeded is string && request.resource.data.decisionsNeeded.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['links']) || (request.resource.data.links is string && request.resource.data.links.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['projectSponsor']) || (request.resource.data.projectSponsor is string && request.resource.data.projectSponsor.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['statusNote']) || (request.resource.data.statusNote is string && request.resource.data.statusNote.size() <= 160))
+          && (!request.resource.data.keys().hasAny(['scope']) || (request.resource.data.scope is string && request.resource.data.scope.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['nextReviewDate']) || (request.resource.data.nextReviewDate is string && request.resource.data.nextReviewDate.size() <= 4000))
+          && (!request.resource.data.keys().hasAny(['workingDetails']) || (request.resource.data.workingDetails is string && request.resource.data.workingDetails.size() <= 160));
+        // Status changes and their history event must be committed atomically.
+        allow update: if canEdit(orgId)
+          && resource.data.get('archived', false) == false
+          && request.resource.data.lastEventId is string
+          && request.resource.data.lastEventId.size() > 0
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status','archived','updatedAt','lastEventId','evaluation','closedBy','closedAt'
+          ])
+          && request.resource.data.updatedAt == request.time
+          && getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)/history/$(request.resource.data.lastEventId)).data.actorUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)/history/$(request.resource.data.lastEventId)).data.fromStatus == resource.data.status
+          && getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)/history/$(request.resource.data.lastEventId)).data.toStatus == request.resource.data.status
+          && (
+            (resource.data.status == 'draft' && request.resource.data.status == 'proposed'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','lastEventId']))
+            || (resource.data.status == 'proposed' && request.resource.data.status == 'draft'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','lastEventId']))
+            || (resource.data.status == 'proposed' && request.resource.data.status == 'active'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','lastEventId']))
+            || (resource.data.status == 'proposed' && request.resource.data.status == 'proposed'
+              && request.resource.data.archived == true
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived','updatedAt','lastEventId']))
+            || (resource.data.status == 'active' && request.resource.data.status == 'closed'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','lastEventId','evaluation','closedBy','closedAt'])
+              && request.resource.data.closedBy == request.auth.uid
+              && request.resource.data.closedAt == request.time
+              && request.resource.data.evaluation.outcome in ['Successful','Partially Successful','Unsuccessful','Discontinued']
+              && request.resource.data.evaluation.lessonsLearned is string
+              && request.resource.data.evaluation.lessonsLearned.size() > 0
+              && request.resource.data.evaluation.lessonsLearned.size() <= 4000)
+          );
+        // Only drafts can be permanently deleted.
+        allow delete: if canEdit(orgId) && resource.data.status == 'draft';
         match /history/{eventId} {
-          allow read: if get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'public'
-            || (signedIn() && canReadProject(orgId, get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data));
-          allow write: if false; // Trusted lifecycle operation in slice 3.
+          allow get, list: if isMember(orgId);
+          allow create: if canEdit(orgId)
+            && request.resource.data.keys().hasOnly(['action','fromStatus','toStatus','actorUid','at','evaluation'])
+            && request.resource.data.keys().hasAll(['action','fromStatus','toStatus','actorUid','at'])
+            && request.resource.data.actorUid == request.auth.uid
+            && request.resource.data.at == request.time
+            && request.resource.data.action in ['propose','withdraw','activate','archive','close']
+            && getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.lastEventId == eventId
+            && getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.status == request.resource.data.toStatus
+            && ((request.resource.data.action == 'propose' && request.resource.data.fromStatus == 'draft' && request.resource.data.toStatus == 'proposed')
+             || (request.resource.data.action == 'withdraw' && request.resource.data.fromStatus == 'proposed' && request.resource.data.toStatus == 'draft')
+             || (request.resource.data.action == 'activate' && request.resource.data.fromStatus == 'proposed' && request.resource.data.toStatus == 'active')
+             || (request.resource.data.action == 'archive' && request.resource.data.fromStatus == 'proposed' && request.resource.data.toStatus == 'proposed'
+               && getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.archived == true)
+             || (request.resource.data.action == 'close' && request.resource.data.fromStatus == 'active' && request.resource.data.toStatus == 'closed'
+               && request.resource.data.evaluation == getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.evaluation));
+          allow update, delete: if false;
         }
       }
     }
