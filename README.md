@@ -1,39 +1,32 @@
-# DeaconProjects — Starter (Milestone 1)
+# DeaconProjects — M4 Portfolio Dashboard
 
-A multi-tenant React + Ant Design + Firebase project brief application.
+Based on the uploaded App.jsx and firestore.rules (October 22, 2026).
 
-## Scope implemented
+## Install
 
-- Google sign-in and public browsing of projects in an organization.
-- Organization membership roles: viewer, editor, admin (rules enforced).
-- Explicit access to private projects, plus organization-admin override.
-- Editors can create private drafts with title and short description and edit those two fields.
-- Private-by-default project creation enforced by Firestore rules.
-- No self-service tenant creation, public publishing, status changes, or permission editing yet.
+1. Back up your current `src/App.jsx` and `firestore.rules`.
+2. Copy `src/App.jsx` and `firestore.rules` from this package into the project root, preserving paths.
+3. The public query uses a compound visibility/status filter. Add the supplied composite index to your existing `firestore.indexes.json` (merge, do not overwrite existing indexes). If you have no index file, copy the supplied file and add `"indexes": "firestore.indexes.json"` under the `firestore` object in `firebase.json`.
+4. Run `npx prettier --write src/App.jsx`, then `npm run build`.
+5. Run Firestore emulator rules tests if configured, then deploy `firebase deploy --only firestore:rules,firestore:indexes` (only if indexes configured).
+6. Deploy Hosting as usual after testing.
 
-## Setup
+## Security expectations
 
-1. `npm install`
-2. Create a Firebase project and register a Web app. Enable **Authentication > Google** and **Cloud Firestore**.
-3. Copy `.env.example` to `.env` and fill the Firebase web app configuration.
-4. `firebase login`, `firebase use --add`, and `firebase deploy --only firestore:rules`.
-5. `npm run dev`; sign in once with Google. Find your Firebase Auth UID in the Firebase console.
-6. For first organization provisioning, use a **trusted** service-account credential and run:
-   `GOOGLE_APPLICATION_CREDENTIALS=/secure/path/service-account.json node scripts/provision.mjs elmbrook Elmbrook YOUR_FIREBASE_AUTH_UID`
-   This is a privileged administrative operation. Never commit the service account JSON.
-7. Open `/org/elmbrook` and create a private draft.
+- Members: all statuses and visibility values.
+- Visitors: public Proposed, Active, Closed only. Public Draft denied even by direct document read.
+- The client query must include BOTH `visibility == public` and `status in [proposed, active, closed]`; security rules are not result filters.
+- Members' role-based editing remains unchanged.
+- Archived proposals are hidden from the default dashboard and visible to members on demand. Public archived proposals are currently readable by visitors through a direct URL because archival is not part of the specified confidentiality policy; revisit if archives should be private.
 
-For local emulator use, start `firebase emulators:start` and set `VITE_USE_EMULATORS=true` in `.env`. Emulator data must be provisioned separately; the script as written targets the credential's configured Firebase project, not the emulator unless the appropriate emulator environment variables are set.
+## Acceptance tests
 
-## Important design notes
+- Signed-out visitor: no drafts or confidential projects; public Proposed/Active/Closed appear.
+- Signed-out direct link to a public Draft: denied.
+- Signed-out direct link to a confidential Active project: denied.
+- Member (viewer): sees Draft and Confidential, but cannot edit.
+- Member (editor/admin): sees all and can create drafts.
+- Closed projects appear last, collapsed by default; search finds matching closed projects.
+- Existing lifecycle actions, history, email notifications, and print brief still work.
 
-- Firestore query rules are **not filters**. The dashboard combines public-project and UID-authorized-project queries (admins may query all). These query shapes and their required indexes must be verified in Firebase Emulator rules tests before production. Do not treat this starter as production-ready.
-- `organizations/{orgId}` documents are readable publicly: keep only public name and display labels there. Never store private membership or secrets in them.
-- The Firestore rules currently restrict the project document to the starter fields. The full brief schema requires an explicit coordinated rules update.
-- The status/visibility audit log will be written by a trusted operation in milestone 3, not client-side.
-- Google sign-in does not grant editing permissions. Membership must be provisioned by an admin.
-- Private access lists use Firebase Auth UIDs, not email addresses, to avoid email-spoofing and stale identity issues.
-
-## Validation before production
-
-Add Firebase Emulator rules tests for public reads, private reads, cross-tenant isolation, role restrictions, draft creation, and immutable ownership. Verify indexes and query behavior, then implement the complete brief and lifecycle transitions.
+Note: Creating a Public project is not exposed in the uploaded UI; this change does not add a visibility editor or change the stored `private` value.

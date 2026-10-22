@@ -8,6 +8,10 @@ import {
   Input,
   Layout,
   List,
+  Row,
+  Col,
+  Statistic,
+  Empty,
   Select,
   Space,
   Spin,
@@ -42,7 +46,32 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "./firebase";
 const { Header, Content } = Layout;
-const statuses = ["draft", "proposed", "active", "closed"];
+const statuses = ["active", "proposed", "draft", "closed"];
+const remainingTime = (value, now = new Date()) => {
+  if (!value) return "Ongoing";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return "";
+  const target = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((target - today) / 86400000);
+  if (days === 0) return "Due today";
+  const absoluteDays = Math.abs(days);
+  const amount =
+    absoluteDays >= 60 ? Math.round(absoluteDays / 30.44) : absoluteDays;
+  const unit = absoluteDays >= 60 ? "month" : "day";
+  const duration = `${amount} ${unit}${amount === 1 ? "" : "s"}`;
+  return days > 0 ? `${duration} remaining` : `${duration} overdue`;
+};
+
+const publicStatuses = ["proposed", "active", "closed"];
+const statusLabel = (status) =>
+  status ? status[0].toUpperCase() + status.slice(1) : "Unknown";
+const visibilityLabel = (visibility) =>
+  visibility === "private" ? "Confidential" : "Public";
 function useUser() {
   const [user, setUser] = useState(undefined);
   useEffect(() => onAuthStateChanged(auth, setUser), []);
@@ -152,68 +181,154 @@ function Dashboard({ user }) {
   const { orgId } = useParams();
   const { loading, org, role } = useOrg(orgId, user);
   const [items, setItems] = useState([]);
+  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
+
   useEffect(() => {
+    if (loading) return;
     let live = true;
+    setFetching(true);
+    setItems([]);
     setError("");
     const projects = collection(db, "organizations", orgId, "projects");
+    // Firestore rules are not filters: the public query must exclude drafts.
     const q = role
       ? query(projects)
-      : query(projects, where("visibility", "==", "public"));
+      : query(
+          projects,
+          where("visibility", "==", "public"),
+          where("status", "in", publicStatuses),
+        );
     getDocs(q)
       .then((snap) => {
         if (live) setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       })
       .catch((e) => {
         if (live) setError(e.message);
+      })
+      .finally(() => {
+        if (live) setFetching(false);
       });
     return () => {
       live = false;
     };
-  }, [orgId, role]);
+  }, [orgId, role, loading]);
+
   if (loading) return <Spin />;
   if (!org)
     return (
       <Alert type="warning" message="Organization not found or unavailable" />
     );
+
+  const isMember = !!role;
   const canEdit = role === "editor" || role === "admin";
-  const shown = items.filter(
+  // Defense in depth; Firestore rules independently enforce public access.
+  const accessible = items.filter(
     (p) =>
-      (showArchived || !p.archived) &&
-      (filter === "all" || p.status === filter),
+      isMember ||
+      (p.visibility === "public" && publicStatuses.includes(p.status)),
   );
+  const current = accessible.filter((p) => !p.archived);
+  const archived = accessible.filter((p) => !!p.archived);
+  const needle = search.trim().toLowerCase();
+  const matches = (p) =>
+    !needle ||
+    [p.title, p.shortDescription, p.leadDeacon, p.projectSponsor].some(
+      (value) =>
+        String(value || "")
+          .toLowerCase()
+          .includes(needle),
+    );
+  const visible = current.filter(matches);
+  const count = (status) => current.filter((p) => p.status === status).length;
+
+  const projectCard = (p) => (
+    <Card key={p.id} size="small" hoverable style={{ height: "100%" }}>
+      <Space direction="vertical" size={6} style={{ width: "100%" }}>
+        <Space wrap size={4}>
+          {isMember && (
+            <Tag color={p.visibility === "private" ? "gold" : "default"}>
+              {visibilityLabel(p.visibility)}
+            </Tag>
+          )}
+          {p.statusNote && <Tag>{p.statusNote}</Tag>}
+        </Space>
+        <Link
+          to={`/org/${orgId}/projects/${p.id}`}
+          style={{ fontSize: 16, fontWeight: 600 }}
+        >
+          {p.title || "Untitled project"}
+        </Link>
+        {p.shortDescription && (
+          <Typography.Paragraph
+            ellipsis={{ rows: 2 }}
+            style={{ marginBottom: 0 }}
+          >
+            {p.shortDescription}
+          </Typography.Paragraph>
+        )}
+        <Typography.Text type="secondary">
+          Lead: {p.leadDeacon || "Not assigned"}
+        </Typography.Text>
+        {p.targetDate && (
+          <Space direction="vertical" size={0}>
+            <Typography.Text type="secondary">
+              Target: {p.targetDate}
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {remainingTime(p.targetDate)}
+            </Typography.Text>
+          </Space>
+        )}
+      </Space>
+    </Card>
+  );
+
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <div>
-        <Typography.Title>{org.name || orgId}</Typography.Title>
+        <Typography.Title style={{ marginBottom: 4 }}>
+          {org.name || orgId}
+        </Typography.Title>
         <Typography.Text type="secondary">
-          Project portfolio · {role ? `Your role: ${role}` : "Public view"}
+          Project Portfolio ·{" "}
+          {isMember ? `Member view (${role})` : "Public view"}
         </Typography.Text>
       </div>
+      <Row gutter={[12, 12]}>
+        {statuses
+          .filter((status) => isMember || status !== "draft")
+          .map((status) => (
+            <Col xs={12} sm={6} key={status}>
+              <Card size="small">
+                <Statistic title={statusLabel(status)} value={count(status)} />
+              </Card>
+            </Col>
+          ))}
+      </Row>
       <Space wrap>
-        <Select
-          value={filter}
-          onChange={setFilter}
-          style={{ width: 160 }}
-          options={[
-            { value: "all", label: "All statuses" },
-            ...statuses.map((s) => ({
-              value: s,
-              label: s[0].toUpperCase() + s.slice(1),
-            })),
-          ]}
+        <Input.Search
+          allowClear
+          placeholder="Search projects"
+          aria-label="Search projects"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: 260, maxWidth: "100%" }}
         />
-        {role && (
-          <Button onClick={() => setShowArchived((x) => !x)}>
-            {showArchived ? "Hide archived" : "Show archived"}
-          </Button>
-        )}
         {canEdit && (
           <Link to={`/org/${orgId}/new`}>
             <Button type="primary">New draft</Button>
           </Link>
+        )}
+        {isMember && archived.length > 0 && (
+          <Button onClick={() => setShowArchived((value) => !value)}>
+            {showArchived
+              ? "Hide archived proposals"
+              : `Archived proposals (${archived.length})`}
+          </Button>
         )}
       </Space>
       {error && (
@@ -224,26 +339,79 @@ function Dashboard({ user }) {
           description={error}
         />
       )}
-      <List
-        bordered
-        dataSource={shown}
-        locale={{ emptyText: "No visible projects yet" }}
-        renderItem={(p) => (
-          <List.Item
-            extra={
-              <Space>
-                <Tag>{p.status}</Tag>
-                {p.archived && <Tag>Archived</Tag>}
-              </Space>
-            }
-          >
-            <Link to={`/org/${orgId}/projects/${p.id}`}>{p.title}</Link>
-          </List.Item>
-        )}
-      />
+      {fetching ? (
+        <Spin />
+      ) : (
+        <>
+          {statuses
+            .filter((status) => isMember || status !== "draft")
+            .map((status) => {
+              const group = visible.filter((p) => p.status === status);
+              if (status === "closed" && !showClosed && !needle) {
+                return (
+                  <Card key={status} size="small">
+                    <Space wrap>
+                      <Typography.Title level={4} style={{ margin: 0 }}>
+                        Closed ({count("closed")})
+                      </Typography.Title>
+                      <Button onClick={() => setShowClosed(true)}>
+                        Show closed projects
+                      </Button>
+                    </Space>
+                  </Card>
+                );
+              }
+              return (
+                <section
+                  key={status}
+                  aria-label={`${statusLabel(status)} projects`}
+                >
+                  <Typography.Title level={4}>
+                    {statusLabel(status)} (
+                    {needle ? group.length : count(status)})
+                  </Typography.Title>
+                  {group.length ? (
+                    <Row gutter={[12, 12]}>
+                      {group.map((p) => (
+                        <Col key={p.id} xs={24} md={12} xl={8}>
+                          {projectCard(p)}
+                        </Col>
+                      ))}
+                    </Row>
+                  ) : (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description="No projects to show"
+                    />
+                  )}
+                  {status === "closed" && !needle && (
+                    <Button type="link" onClick={() => setShowClosed(false)}>
+                      Collapse closed projects
+                    </Button>
+                  )}
+                </section>
+              );
+            })}
+          {isMember && showArchived && (
+            <section aria-label="Archived proposals">
+              <Typography.Title level={4}>
+                Archived proposals ({archived.filter(matches).length})
+              </Typography.Title>
+              <Row gutter={[12, 12]}>
+                {archived.filter(matches).map((p) => (
+                  <Col key={p.id} xs={24} md={12} xl={8}>
+                    {projectCard(p)}
+                  </Col>
+                ))}
+              </Row>
+            </section>
+          )}
+        </>
+      )}
     </Space>
   );
 }
+
 function NewDraft({ user }) {
   const { orgId } = useParams();
   const { loading, role } = useOrg(orgId, user);
@@ -275,7 +443,7 @@ function NewDraft({ user }) {
     }
   };
   return (
-    <Card title="Create private draft">
+    <Card title="Create confidential draft">
       <Form layout="vertical" onFinish={save}>
         <Form.Item
           label="Project title"
@@ -285,7 +453,7 @@ function NewDraft({ user }) {
           <Input />
         </Form.Item>
         <Form.Item label="Short description" name="shortDescription">
-          <Input.TextArea rows={4} maxLength={4000} />
+          <Input.TextArea rows={4} maxLength={500} showCount />
         </Form.Item>
         <Button type="primary" htmlType="submit" loading={busy}>
           Save draft
@@ -299,23 +467,24 @@ const briefSections = [
     title: "Project overview",
     fields: [
       ["title", "Project title", "short"],
-      ["shortDescription", "Short description", "long"],
-      ["longDescription", "Detailed description (optional)", "long"],
-      ["purpose", "Why this matters", "long"],
-      ["scope", "Scope & people involved", "long"],
+      ["shortDescription", "Short description", "long", 500],
+      ["longDescription", "Detailed description and scope (optional)", "long"],
+      ["purpose", "Why this matters", "long", 500],
+      ["scope", "Out of scope", "long", 500],
     ],
   },
   {
     title: "Leadership and stakeholders",
     fields: [
       ["leadDeacon", "Project lead / Lead Deacon", "short"],
-      ["projectSponsor", "Project sponsor(s)", "long"],
-      ["statusNote", "Status note (e.g. On schedule)", "short"],
-      ["teamMembers", "Project team members (one per line)", "long"],
+      ["projectSponsor", "Project sponsor(s)", "long", 500],
+      ["statusNote", "Status note (e.g. On schedule)", "short", 100],
+      ["teamMembers", "Project team members (one per line)", "long", 1000],
       [
         "stakeholders",
-        "Key stakeholders and sponsors (name — role, one per line)",
+        "Key stakeholders (name — role, one per line)",
         "long",
+        1000,
       ],
     ],
   },
@@ -326,32 +495,86 @@ const briefSections = [
       ["targetDate", "Expected completion date (YYYY-MM-DD)", "date"],
       ["actualDate", "Actual completion date (YYYY-MM-DD)", "date"],
       ["nextReviewDate", "Next review date (YYYY-MM-DD)", "date"],
-      [
-        "expectedOutcome",
-        "Expected outcome (research, recommendation, implementation, etc.)",
-        "long",
-      ],
-      ["deliverables", "Expected deliverables", "long"],
+      ["expectedOutcome", "Expected outcomes and deliverables", "long", 1000],
     ],
   },
   {
     title: "Assumptions and barriers",
-    fields: [
-      ["assumptions", "Key assumptions and verification status", "long"],
-      ["barriers", "Barriers, blockers and dependencies", "long"],
-    ],
+    fields: [["barriers", "Barriers, blockers and dependencies", "long", 1000]],
   },
   {
     title: "Progress and decisions",
     fields: [
       ["accomplishments", "Accomplishments / progress", "long"],
-      ["nextSteps", "Next steps", "long"],
-      ["decisionsNeeded", "Decisions or help needed", "long"],
-      ["links", "Reference links (one per line)", "long"],
-      ["workingDetails", "Working details reference or link", "short"],
+      ["decisionsNeeded", "Decisions or help needed", "long", 1000],
     ],
   },
 ];
+// Structured tables. Existing plain-text fields are preserved for compatibility.
+const legacyRows = (text, field) =>
+  (text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) =>
+      field === "assumptions"
+        ? { assumption: line, status: "Unverified" }
+        : { action: line, owner: "" },
+    );
+const cleanRows = (rows, columns) =>
+  (rows || [])
+    .map((row) =>
+      Object.fromEntries(
+        columns.map((key) => [key, (row?.[key] || "").trim()]),
+      ),
+    )
+    .filter((row) => columns.some((key) => row[key]));
+const sameRows = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
+
+function RowEditor({ name, columns }) {
+  return (
+    <Form.List name={name}>
+      {(fields, { add, remove }) => (
+        <Space direction="vertical" style={{ width: "100%" }}>
+          {fields.map(({ key, name: rowIndex, ...rest }) => (
+            <Space key={key} align="start" wrap>
+              {columns.map((column) => (
+                <Form.Item
+                  {...rest}
+                  key={column.key}
+                  name={[rowIndex, column.key]}
+                  rules={[
+                    {
+                      max: column.max,
+                      message: `Maximum ${column.max} characters`,
+                    },
+                  ]}
+                  style={{ marginBottom: 4, minWidth: column.width || 180 }}
+                >
+                  {column.options ? (
+                    <Select
+                      placeholder={column.title}
+                      options={column.options}
+                      style={{ minWidth: 180 }}
+                    />
+                  ) : (
+                    <Input placeholder={column.title} maxLength={column.max} />
+                  )}
+                </Form.Item>
+              ))}
+              <Button danger onClick={() => remove(rowIndex)}>
+                Remove
+              </Button>
+            </Space>
+          ))}
+          {fields.length < 30 && (
+            <Button onClick={() => add()}>+ Add row</Button>
+          )}
+        </Space>
+      )}
+    </Form.List>
+  );
+}
 const briefKeys = briefSections.flatMap((s) => s.fields.map((f) => f[0]));
 function Project({ user }) {
   const { orgId, projectId } = useParams();
@@ -485,9 +708,26 @@ function Project({ user }) {
     project.status !== "closed" &&
     !project.archived;
   const beginEdit = () => {
-    form.setFieldsValue(
-      Object.fromEntries(briefKeys.map((k) => [k, project[k] || ""])),
+    const existing = Object.fromEntries(
+      briefKeys.map((k) => [k, project[k] || ""]),
     );
+    if (project.deliverables?.trim()) {
+      existing.expectedOutcome = [
+        project.expectedOutcome,
+        `Deliverables: ${project.deliverables}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    form.setFieldsValue({
+      ...existing,
+      visibility: project.visibility || "private",
+      assumptionsTable:
+        project.assumptionsTable ||
+        legacyRows(project.assumptions, "assumptions"),
+      nextStepsTable:
+        project.nextStepsTable || legacyRows(project.nextSteps, "nextSteps"),
+    });
     setEditing(true);
   };
   const save = async (values) => {
@@ -495,12 +735,51 @@ function Project({ user }) {
     const fields = Object.fromEntries(
       briefKeys.map((k) => [k, (values[k] || "").trim()]),
     );
+    const assumptionsTable = cleanRows(values.assumptionsTable, [
+      "assumption",
+      "status",
+    ]);
+    const nextStepsTable = cleanRows(values.nextStepsTable, [
+      "action",
+      "owner",
+    ]);
+    const progressKeys = ["accomplishments", "decisionsNeeded"];
+    const progressChanged =
+      progressKeys.some((key) => fields[key] !== (project[key] || "")) ||
+      !sameRows(
+        nextStepsTable,
+        project.nextStepsTable || legacyRows(project.nextSteps, "nextSteps"),
+      ) ||
+      !sameRows(
+        assumptionsTable,
+        project.assumptionsTable ||
+          legacyRows(project.assumptions, "assumptions"),
+      );
+    const legacyDeliverables = project.deliverables?.trim()
+      ? { deliverables: "" }
+      : {};
+    const progressStamp = progressChanged
+      ? { progressEditedAt: serverTimestamp() }
+      : {};
     try {
       await updateDoc(doc(db, "organizations", orgId, "projects", projectId), {
         ...fields,
+        assumptionsTable,
+        nextStepsTable,
+        ...legacyDeliverables,
+        ...progressStamp,
+        visibility: values.visibility,
         updatedAt: serverTimestamp(),
       });
-      setProject((p) => ({ ...p, ...fields }));
+      setProject((p) => ({
+        ...p,
+        ...fields,
+        assumptionsTable,
+        nextStepsTable,
+        ...legacyDeliverables,
+        ...(progressChanged ? { progressEditedAt: new Date() } : {}),
+        visibility: values.visibility,
+      }));
       setEditing(false);
       message.success("Project brief saved");
     } catch (e) {
@@ -512,48 +791,56 @@ function Project({ user }) {
   };
   return (
     <div style={{ width: "100%" }}>
-      <Space wrap style={{ marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
+          marginBottom: 20,
+        }}
+      >
         <Link to={`/org/${orgId}`}>← Portfolio</Link>
-        <Tag>{project.status}</Tag>
-        <Tag>{project.visibility}</Tag>
-        {!editing && canEdit && (
-          <Button type="primary" onClick={beginEdit}>
-            Edit brief
-          </Button>
-        )}
-        {!editing && (
-          <Button onClick={() => window.print()}>Print / Save as PDF</Button>
-        )}
-        {!editing && canEdit && project.status === "draft" && (
-          <>
-            <Tooltip title="Move this draft to Proposed status for Council review. This does not approve the project or change its visibility.">
-              <Button onClick={() => setAction("propose")}>
-                Submit as Proposal
+        <Space wrap style={{ justifyContent: "flex-end" }}>
+          {!editing && canEdit && (
+            <Button type="primary" onClick={beginEdit}>
+              Edit brief
+            </Button>
+          )}
+          {!editing && (
+            <Button onClick={() => window.print()}>Print / Save as PDF</Button>
+          )}
+          {!editing && canEdit && project.status === "draft" && (
+            <>
+              <Tooltip title="Move this draft to Proposed status for Council review. This does not approve the project or change its visibility.">
+                <Button onClick={() => setAction("propose")}>
+                  Submit as Proposal
+                </Button>
+              </Tooltip>{" "}
+              <Button danger onClick={() => setAction("delete")}>
+                Delete draft
               </Button>
-            </Tooltip>{" "}
-            <Button danger onClick={() => setAction("delete")}>
-              Delete draft
+            </>
+          )}
+          {!editing && canEdit && project.status === "proposed" && (
+            <>
+              <Button onClick={() => setAction("withdraw")}>
+                Return to draft
+              </Button>
+              <Button type="primary" onClick={() => setAction("activate")}>
+                Activate
+              </Button>
+              <Button onClick={() => setAction("archive")}>Archive</Button>
+            </>
+          )}
+          {!editing && canEdit && project.status === "active" && (
+            <Button type="primary" onClick={() => setAction("close")}>
+              Close project
             </Button>
-          </>
-        )}
-        {!editing && canEdit && project.status === "proposed" && (
-          <>
-            <Button onClick={() => setAction("withdraw")}>
-              Return to draft
-            </Button>
-            <Button type="primary" onClick={() => setAction("activate")}>
-              Activate
-            </Button>
-            <Button onClick={() => setAction("archive")}>Archive</Button>
-          </>
-        )}
-        {!editing && canEdit && project.status === "active" && (
-          <Button type="primary" onClick={() => setAction("close")}>
-            Close project
-          </Button>
-        )}
-        {project.archived && <Tag>Archived</Tag>}
-      </Space>
+          )}
+        </Space>
+      </div>
       <Modal
         title={
           {
@@ -617,6 +904,13 @@ function Project({ user }) {
           )}
         </Form>
       </Modal>
+      <Space size="small" wrap style={{ marginBottom: 12 }}>
+        <Tag bordered={false} style={{ textTransform: "capitalize" }}>
+          {project.status}
+        </Tag>
+        <Tag bordered={false}>{visibilityLabel(project.visibility)}</Tag>
+        {project.archived && <Tag bordered={false}>Archived</Tag>}
+      </Space>
       {editing ? (
         <Card title="Edit project brief">
           <Form
@@ -627,26 +921,134 @@ function Project({ user }) {
               message.warning("Please correct the highlighted fields.")
             }
           >
+            <Form.Item
+              name="visibility"
+              label="Project visibility"
+              rules={[{ required: true }]}
+              extra="Public projects can be viewed by visitors once they are Proposed, Active, or Closed. Drafts remain visible only to organization members."
+            >
+              <Select
+                options={[
+                  {
+                    value: "private",
+                    label: "Confidential — Elders and Deacons only",
+                  },
+                  {
+                    value: "public",
+                    label:
+                      "Public — visible to visitors when project is proposed, active, or closed.",
+                  },
+                ]}
+              />
+            </Form.Item>
             {briefSections.map((section) => (
               <div key={section.title}>
-                <Typography.Title level={4}>{section.title}</Typography.Title>
-                {section.fields.map(([key, label, kind]) => (
+                <Typography.Title level={4}>
+                  {section.title}
+                  {section.title === "Progress and decisions" && (
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        marginLeft: 12,
+                        fontSize: 13,
+                        fontWeight: "normal",
+                      }}
+                    >
+                      Last edited on:{" "}
+                      {project.progressEditedAt
+                        ?.toDate?.()
+                        ?.toLocaleDateString?.() ||
+                        (project.progressEditedAt instanceof Date &&
+                          project.progressEditedAt.toLocaleDateString()) ||
+                        "Not recorded"}
+                    </Typography.Text>
+                  )}
+                </Typography.Title>
+                {section.title === "Assumptions and barriers" && (
+                  <div style={{ marginBottom: 20 }}>
+                    <Typography.Text strong>
+                      Key assumptions and verification status
+                    </Typography.Text>
+                    <div style={{ marginTop: 8 }}>
+                      <RowEditor
+                        name="assumptionsTable"
+                        columns={[
+                          {
+                            key: "assumption",
+                            title: "Assumption",
+                            max: 500,
+                            width: 340,
+                          },
+                          {
+                            key: "status",
+                            title: "Verification status",
+                            max: 50,
+                            options: [
+                              { value: "Unverified", label: "Unverified" },
+                              { value: "In progress", label: "In progress" },
+                              { value: "Verified", label: "Verified" },
+                              { value: "Disproven", label: "Disproven" },
+                            ],
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                )}
+                {section.title === "Progress and decisions" && (
+                  <div style={{ marginBottom: 20 }}>
+                    <Typography.Text strong>
+                      Next steps and owners
+                    </Typography.Text>
+                    <div style={{ marginTop: 8 }}>
+                      <RowEditor
+                        name="nextStepsTable"
+                        columns={[
+                          {
+                            key: "action",
+                            title: "Action",
+                            max: 500,
+                            width: 340,
+                          },
+                          {
+                            key: "owner",
+                            title: "Owner",
+                            max: 160,
+                            width: 200,
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                )}
+                {section.fields.map(([key, label, kind, limit]) => (
                   <Form.Item
                     key={key}
                     name={key}
                     label={label}
+                    extra={
+                      key === "stakeholders"
+                        ? "Who will be affected by the outcome of this project?"
+                        : undefined
+                    }
                     rules={
                       key === "title"
                         ? [{ required: true, whitespace: true, max: 160 }]
-                        : [{ max: kind === "short" ? 160 : 4000 }]
+                        : [{ max: limit || (kind === "short" ? 160 : 4000) }]
                     }
                   >
                     {kind === "long" ? (
-                      <Input.TextArea rows={3} maxLength={4000} showCount />
+                      <Input.TextArea
+                        rows={3}
+                        maxLength={limit || 4000}
+                        showCount
+                      />
                     ) : (
                       <Input
                         type={kind === "date" ? "date" : "text"}
-                        maxLength={kind === "short" ? 160 : undefined}
+                        maxLength={
+                          limit || (kind === "short" ? 160 : undefined)
+                        }
                       />
                     )}
                   </Form.Item>
