@@ -28,8 +28,10 @@ import {
   Routes,
   useNavigate,
   useParams,
+  useLocation,
 } from "react-router-dom";
-import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { AuthPage, MembershipStatus, AdminUsers } from "./Membership";
 import {
   addDoc,
   collection,
@@ -44,7 +46,7 @@ import {
   deleteDoc,
   orderBy,
 } from "firebase/firestore";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db } from "./firebase";
 const { Header, Content } = Layout;
 const statuses = ["active", "proposed", "draft", "closed"];
 const remainingTime = (value, now = new Date()) => {
@@ -119,6 +121,9 @@ function useOrg(orgId, user) {
   return state;
 }
 function Shell({ user, children }) {
+  const location = useLocation();
+  const currentOrgId =
+    location.pathname.match(/^\/org\/([^/]+)/)?.[1] || "elmbrook";
   return (
     <Layout className="shell">
       <Header className="top">
@@ -134,16 +139,9 @@ function Shell({ user, children }) {
               <Button onClick={() => signOut(auth)}>Sign out</Button>
             </>
           ) : (
-            <Button
-              type="primary"
-              onClick={() =>
-                signInWithPopup(auth, googleProvider).catch((e) =>
-                  message.error(e.message),
-                )
-              }
-            >
-              Sign in with Google
-            </Button>
+            <Link to={`/org/${currentOrgId}/login`}>
+              <Button type="primary">Sign in / Register</Button>
+            </Link>
           )}
         </Space>
       </Header>
@@ -309,6 +307,12 @@ function Dashboard({ user }) {
             </Col>
           ))}
       </Row>
+      <MembershipStatus orgId={orgId} user={user} role={role} />
+      {role === "admin" && (
+        <Link to={`/org/${orgId}/admin/users`}>
+          <Button>Manage users and email settings</Button>
+        </Link>
+      )}
       <Space wrap>
         <Input.Search
           allowClear
@@ -1111,6 +1115,22 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/org/:orgId" element={<Dashboard user={user} />} />
+        <Route
+          path="/org/:orgId/login"
+          element={<AuthPage user={user} mode="login" />}
+        />
+        <Route
+          path="/org/:orgId/register"
+          element={<AuthPage user={user} mode="register" />}
+        />
+        <Route
+          path="/org/:orgId/reset-password"
+          element={<AuthPage user={user} mode="reset" />}
+        />
+        <Route
+          path="/org/:orgId/admin/users"
+          element={<AdminUsers user={user} />}
+        />
         <Route path="/org/:orgId/new" element={<NewDraft user={user} />} />
         <Route
           path="/org/:orgId/projects/:projectId"
