@@ -1044,20 +1044,7 @@ function Project({ user }) {
                     </div>
                   </div>
                 )}
-                {section.title === "Schedule and outcomes" && (
-                  <div style={{ marginBottom: 20 }}>
-                    <Typography.Title level={5} style={{ marginBottom: 4 }}>
-                      Project Team Deliverables
-                    </Typography.Title>
-                    <Typography.Paragraph type="secondary">
-                      What has the Council asked the project team to produce or accomplish? Select all that apply, then describe the expected result below.
-                    </Typography.Paragraph>
-                    <Form.Item name="deliverableCategories" label="Type of deliverable">
-                      <Checkbox.Group options={deliverableCategories} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }} />
-                    </Form.Item>
-                  </div>
-                )}
-                {section.fields.map(([key, label, kind, limit]) => (
+                {section.fields.filter(([key]) => key !== "expectedOutcome").map(([key, label, kind, limit]) => (
                   <Form.Item
                     key={key}
                     name={key}
@@ -1093,6 +1080,36 @@ function Project({ user }) {
                     )}
                   </Form.Item>
                 ))}
+                {section.title === "Schedule and outcomes" && (
+                  <div style={{ marginTop: 16 }}>
+                    <Typography.Title level={5} style={{ marginBottom: 4 }}>
+                      Project Team Deliverables
+                    </Typography.Title>
+                    <Typography.Paragraph type="secondary">
+                      What has the Council asked the project team to produce or accomplish?
+                    </Typography.Paragraph>
+                    <Row gutter={[24, 12]} align="top">
+                      <Col xs={24} md={12}>
+                        <Form.Item name="deliverableCategories" label="Type of deliverable">
+                          <Checkbox.Group
+                            options={deliverableCategories}
+                            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="expectedOutcome"
+                          label="Describe the expected deliverable"
+                          extra="Be specific about what the team should deliver, rather than why the project matters."
+                          rules={[{ max: 1000 }]}
+                        >
+                          <Input.TextArea rows={7} maxLength={1000} showCount />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </div>
+                )}
               </div>
             ))}
             <Space>
