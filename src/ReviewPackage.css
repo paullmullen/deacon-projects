@@ -1,0 +1,46 @@
+/* Print package only: keep the regular dashboard and individual brief printing unchanged. */
+.review-package-print { display: none; }
+@media print {
+  body:has(.review-package-print) #root { display: none !important; }
+  body:has(.review-package-print) .review-package-print { display: block !important; }
+  body:has(.review-package-print) .review-package-print,
+  body:has(.review-package-print) .review-package-print * { visibility: visible !important; }
+  .review-package-item {
+    position: relative;
+    width: 8.5in;
+    margin: 0;
+    break-before: page;
+    page-break-before: always;
+    isolation: isolate;
+  }
+  .review-package-item:first-child { break-before: auto; page-break-before: auto; }
+  .review-package-item .project-brief {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    width: 8.5in;
+    min-height: 11in;
+    height: auto;
+    margin: 0;
+    z-index: 1;
+    background: transparent;
+    box-shadow: none;
+  }
+  .review-package-watermark {
+    position: absolute;
+    top: 4.4in;
+    left: 0.3in;
+    width: 7.9in;
+    text-align: center;
+    transform: rotate(-35deg);
+    font: bold 56px Arial, sans-serif;
+    letter-spacing: 5px;
+    color: #dedede;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .review-package-confidential .brief-footer::after {
+    content: "CONFIDENTIAL";
+    font-weight: bold;
+  }
+}
