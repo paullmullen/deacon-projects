@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Form,
   Input,
   Layout,
@@ -471,6 +472,15 @@ function NewDraft({ user }) {
     </Card>
   );
 }
+const deliverableCategories = [
+  "Research report / assessment",
+  "Recommendation / proposal",
+  "Project plan",
+  "Project management / coordination",
+  "Implemented solution",
+  "Ongoing operational responsibility",
+  "Other",
+];
 const briefSections = [
   {
     title: "Project overview",
@@ -504,7 +514,7 @@ const briefSections = [
       ["targetDate", "Expected completion date (YYYY-MM-DD)", "date"],
       ["actualDate", "Actual completion date (YYYY-MM-DD)", "date"],
       ["nextReviewDate", "Next review date (YYYY-MM-DD)", "date"],
-      ["expectedOutcome", "Expected outcomes and deliverables", "long", 1000],
+      ["expectedOutcome", "Describe the expected deliverable", "long", 1000],
     ],
   },
   {
@@ -730,6 +740,7 @@ function Project({ user }) {
     }
     form.setFieldsValue({
       ...existing,
+      deliverableCategories: Array.isArray(project.deliverableCategories) ? project.deliverableCategories : [],
       visibility: project.visibility || "private",
       assumptionsTable:
         project.assumptionsTable ||
@@ -744,6 +755,7 @@ function Project({ user }) {
     const fields = Object.fromEntries(
       briefKeys.map((k) => [k, (values[k] || "").trim()]),
     );
+    const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
     const assumptionsTable = cleanRows(values.assumptionsTable, [
       "assumption",
       "status",
@@ -773,6 +785,7 @@ function Project({ user }) {
     try {
       await updateDoc(doc(db, "organizations", orgId, "projects", projectId), {
         ...fields,
+        deliverableCategories: selectedDeliverables,
         assumptionsTable,
         nextStepsTable,
         ...legacyDeliverables,
@@ -783,6 +796,7 @@ function Project({ user }) {
       setProject((p) => ({
         ...p,
         ...fields,
+        deliverableCategories: selectedDeliverables,
         assumptionsTable,
         nextStepsTable,
         ...legacyDeliverables,
@@ -1030,13 +1044,28 @@ function Project({ user }) {
                     </div>
                   </div>
                 )}
+                {section.title === "Schedule and outcomes" && (
+                  <div style={{ marginBottom: 20 }}>
+                    <Typography.Title level={5} style={{ marginBottom: 4 }}>
+                      Project Team Deliverables
+                    </Typography.Title>
+                    <Typography.Paragraph type="secondary">
+                      What has the Council asked the project team to produce or accomplish? Select all that apply, then describe the expected result below.
+                    </Typography.Paragraph>
+                    <Form.Item name="deliverableCategories" label="Type of deliverable">
+                      <Checkbox.Group options={deliverableCategories} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }} />
+                    </Form.Item>
+                  </div>
+                )}
                 {section.fields.map(([key, label, kind, limit]) => (
                   <Form.Item
                     key={key}
                     name={key}
                     label={label}
                     extra={
-                      key === "stakeholders"
+                      key === "expectedOutcome"
+                        ? "Be specific about what the team is expected to deliver. This is different from why the project matters."
+                        : key === "stakeholders"
                         ? "Who will be affected by the outcome of this project?"
                         : kind === "long" && ["longDescription", "purpose", "scope", "accomplishments", "barriers", "decisionsNeeded"].includes(key)
                           ? "Formatting: **bold**, *italic*, - bullets, 1. numbered steps, ### headings, [link](https://example.com)."
