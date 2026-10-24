@@ -36,17 +36,14 @@ const roles = ["viewer", "editor", "admin"];
 export function AuthPage({ user, mode = "login" }) {
   const { orgId = "elmbrook" } = useParams();
   const navigate = useNavigate();
+  const [form] = Form.useForm();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [loginError, setLoginError] = useState("");
   const submit = async (v) => {
     setBusy(true);
     setNotice("");
-    console.log("Auth form submitted", {
-      mode,
-      email: v.email,
-      passwordProvided: Boolean(v.password),
-    });
+    setLoginError("");
     try {
       if (mode === "register") {
         const cred = await createUserWithEmailAndPassword(
@@ -57,7 +54,7 @@ export function AuthPage({ user, mode = "login" }) {
         await updateProfile(cred.user, { displayName: v.displayName.trim() });
         await sendEmailVerification(cred.user);
         setNotice(
-          "Check your inbox to verify your email. Then return here and request membership.",
+          "Account created. Check your inbox for a verification email, then return to the portfolio to request access.",
         );
       } else if (mode === "reset") {
         await sendPasswordResetEmail(auth, v.email.trim());
@@ -86,7 +83,15 @@ export function AuthPage({ user, mode = "login" }) {
 
         form.setFieldValue("password", "");
       } else {
-        message.error(e.message);
+        setLoginError(
+          mode === "register" && e.code === "auth/email-already-in-use"
+            ? "An account already exists with this email. Please sign in instead."
+            : mode === "register" && e.code === "auth/weak-password"
+              ? "Choose a stronger password (at least 8 characters)."
+              : mode === "reset"
+                ? "Unable to send a reset email right now. Please try again."
+                : "Unable to create your account right now. Please try again.",
+        );
       }
     } finally {
       setBusy(false);
@@ -96,14 +101,22 @@ export function AuthPage({ user, mode = "login" }) {
     <Card
       title={
         mode === "register"
-          ? "Register for DeaconProjects"
+          ? "Create your Deacon Projects account"
           : mode === "reset"
             ? "Reset password"
             : "Sign in"
       }
       style={{ maxWidth: 520, margin: "auto" }}
     >
+      <Typography.Paragraph type="secondary">
+        {mode === "register"
+          ? "Create an account, verify your email, then request access to the Elmbrook project portfolio. An administrator will review your request."
+          : mode === "reset"
+            ? "Enter your account email and we’ll send password reset instructions."
+            : "Sign in to view your organization’s projects and manage work assigned to you."}
+      </Typography.Paragraph>
       <Form
+        form={form}
         layout="vertical"
         onFinish={submit}
         onFinishFailed={({ errorFields }) => {
@@ -148,7 +161,7 @@ export function AuthPage({ user, mode = "login" }) {
         </Button>
       </Form>
 
-      {loginError && mode === "login" && (
+      {loginError && (
         <Alert
           type="error"
           showIcon
@@ -166,10 +179,10 @@ export function AuthPage({ user, mode = "login" }) {
         />
       )}
       <Space wrap style={{ marginTop: 16 }}>
-        <Link to={`/org/${orgId}/login`}>Sign in</Link>
-        <Link to={`/org/${orgId}/register`}>Register</Link>
-        <Link to={`/org/${orgId}/reset-password`}>Forgot password?</Link>
-        <Link to={`/org/${orgId}`}>Portfolio</Link>
+        {mode !== "login" && <Link to={`/org/${orgId}/login`}>Back to sign in</Link>}
+        {mode === "login" && <Link to={`/org/${orgId}/register`}>Create an account</Link>}
+        {mode === "login" && <Link to={`/org/${orgId}/reset-password`}>Forgot password?</Link>}
+        <Link to={`/org/${orgId}`}>View portfolio</Link>
       </Space>
       {user && !user.emailVerified && <EmailVerification user={user} />}
     </Card>
@@ -239,13 +252,17 @@ export function MembershipStatus({ orgId, user, role }) {
       showIcon
       message={
         state === "pending"
-          ? "Membership request awaiting approval"
+          ? "Your access request is awaiting approval"
           : state === "rejected"
             ? "Membership request declined"
-            : "Request organization membership"
+            : "Request access to this organization"
       }
       description={
-        state === "none" && (
+        state === "pending"
+          ? "An organization administrator will review your request. You can return to this page later to check its status."
+          : state === "rejected"
+            ? "Please contact an organization administrator if you believe this is an error."
+            : state === "none" && (
           <Button
             loading={busy}
             onClick={async () => {
