@@ -69,6 +69,7 @@ const remainingTime = (value, now = new Date()) => {
   return days > 0 ? `${duration} remaining` : `${duration} overdue`;
 };
 
+const capitalBudgetUrl = "https://elmbrookchurch-my.sharepoint.com/:x:/g/personal/rheld_elmbrook_org/IQBDBKgsfLDoR6JVwCsc8s79AcS2Dm89FMkHGbgB1ThLuQk?e=wY3RIN&nav=MTVfe0VEMzVGOEE3LTQxMjYtRDA0OC04RTdFLTkwRTc4NENDMENGRH0";
 const publicStatuses = ["proposed", "active", "closed"];
 const statusLabel = (status) =>
   status ? status[0].toUpperCase() + status.slice(1) : "Unknown";
@@ -308,6 +309,19 @@ function Dashboard({ user }) {
           ))}
       </Row>
       <MembershipStatus orgId={orgId} user={user} role={role} />
+      {isMember && orgId === "elmbrook" && (
+        <Card size="small" title="Capital Budget">
+          <Space direction="vertical" size={8}>
+            <Typography.Text type="secondary">
+              View the current capital budget in the shared OneDrive workbook.
+              Access is subject to Microsoft 365 permissions.
+            </Typography.Text>
+            <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer">
+              <Button type="primary">Open Capital Budget spreadsheet ↗</Button>
+            </a>
+          </Space>
+        </Card>
+      )}
       {role === "admin" && (
         <Link to={`/org/${orgId}/admin/users`}>
           <Button>Manage users and email settings</Button>
