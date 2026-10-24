@@ -301,32 +301,30 @@ function Dashboard({ user }) {
         {statuses
           .filter((status) => isMember || status !== "draft")
           .map((status) => (
-            <Col xs={12} sm={6} key={status}>
+            <Col xs={12} sm={isMember && orgId === "elmbrook" ? 8 : 6} lg={isMember && orgId === "elmbrook" ? 4 : 6} key={status}>
               <Card size="small">
                 <Statistic title={statusLabel(status)} value={count(status)} />
               </Card>
             </Col>
           ))}
+        {isMember && orgId === "elmbrook" && (
+          <Col xs={12} sm={8} lg={4}>
+            <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer"
+              aria-label="Open Capital Budget spreadsheet in OneDrive"
+              style={{ display: "block", height: "100%", color: "inherit" }}>
+              <Card size="small" hoverable style={{ height: "100%" }}>
+                <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                  <Typography.Text type="secondary">Capital Budget</Typography.Text>
+                  <Typography.Text strong style={{ fontSize: 18 }}>
+                    ↗ Spreadsheet
+                  </Typography.Text>
+                </Space>
+              </Card>
+            </a>
+          </Col>
+        )}
       </Row>
       <MembershipStatus orgId={orgId} user={user} role={role} />
-      {isMember && orgId === "elmbrook" && (
-        <Card size="small" title="Capital Budget">
-          <Space direction="vertical" size={8}>
-            <Typography.Text type="secondary">
-              View the current capital budget in the shared OneDrive workbook.
-              Access is subject to Microsoft 365 permissions.
-            </Typography.Text>
-            <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer">
-              <Button type="primary">Open Capital Budget spreadsheet ↗</Button>
-            </a>
-          </Space>
-        </Card>
-      )}
-      {role === "admin" && (
-        <Link to={`/org/${orgId}/admin/users`}>
-          <Button>Manage users and email settings</Button>
-        </Link>
-      )}
       <Space wrap>
         <Input.Search
           allowClear
