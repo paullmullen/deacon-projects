@@ -1,4 +1,6 @@
 import ProjectBrief from "./ProjectBrief";
+import { createPortal } from "react-dom";
+import "./ReviewPackage.css";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -186,6 +188,20 @@ function Dashboard({ user }) {
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewStatuses, setReviewStatuses] = useState([]);
+  const [printProjects, setPrintProjects] = useState(null);
+
+  useEffect(() => {
+    if (!printProjects) return;
+    const clear = () => setPrintProjects(null);
+    window.addEventListener("afterprint", clear);
+    const timer = window.setTimeout(() => window.print(), 250);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", clear);
+    };
+  }, [printProjects]);
 
   useEffect(() => {
     if (loading) return;
@@ -334,6 +350,11 @@ function Dashboard({ user }) {
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: 260, maxWidth: "100%" }}
         />
+        {isMember && (
+          <Button onClick={() => { setReviewStatuses([]); setReviewOpen(true); }}>
+            Print a Review Package
+          </Button>
+        )}
         {canEdit && (
           <Link to={`/org/${orgId}/new`}>
             <Button type="primary">Draft a new project</Button>
@@ -348,6 +369,61 @@ function Dashboard({ user }) {
         )}
         </Space>
       </div>
+      <Modal
+        title="Print a Review Package"
+        open={reviewOpen && isMember}
+        onCancel={() => setReviewOpen(false)}
+        okText="Print / Save as PDF"
+        okButtonProps={{ disabled: !reviewStatuses.length || fetching || !!error }}
+        onOk={() => {
+          const selected = ["draft", "proposed", "active"]
+            .filter((status) => reviewStatuses.includes(status));
+          const chosen = current
+            .filter((project) => selected.includes(project.status))
+            .sort((a, b) =>
+              selected.indexOf(a.status) - selected.indexOf(b.status) ||
+              (a.title || "").localeCompare(b.title || ""));
+          if (!chosen.length) {
+            message.info("No projects match the selected categories.");
+            return;
+          }
+          setReviewOpen(false);
+          setPrintProjects(chosen);
+        }}
+      >
+        <Typography.Paragraph>Select the project categories to include.</Typography.Paragraph>
+        <Checkbox.Group
+          value={reviewStatuses}
+          onChange={setReviewStatuses}
+          style={{ display: "flex", flexDirection: "column", gap: 12 }}
+          options={[
+            { label: "Draft", value: "draft" },
+            { label: "Proposed", value: "proposed" },
+            { label: "Active", value: "active" },
+          ]}
+        />
+        <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
+          Closed projects are excluded. Each project starts on a new page.
+          Confidential projects are marked individually.
+        </Typography.Paragraph>
+      </Modal>
+      {printProjects && isMember && createPortal(
+        <div className="review-package-print" aria-label="Project review package">
+          {printProjects.map((project) => (
+            <div className={"review-package-item" +
+              (project.visibility !== "public" ? " review-package-confidential" : "")}
+              key={project.id}>
+              {project.visibility !== "public" && (
+                <div className="review-package-watermark" aria-hidden="true">
+                  CONFIDENTIAL
+                </div>
+              )}
+              <ProjectBrief project={project} orgName={org?.name || "Deacons"} />
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
       {error && (
         <Alert
           type="error"
