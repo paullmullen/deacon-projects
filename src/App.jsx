@@ -481,6 +481,13 @@ const deliverableCategories = [
   "Ongoing operational responsibility",
   "Other",
 ];
+const sectionGuidance = {
+  "Project overview": "What is this project, and why does it matter?",
+  "Leadership and stakeholders": "Who is leading, sponsoring, and participating?",
+  "Schedule and outcomes": "What should the team deliver, and when?",
+  "Assumptions and barriers": "What must be true, and what might prevent success?",
+  "Progress and decisions": "What has happened, and what needs to happen next?",
+};
 const briefSections = [
   {
     title: "Project overview",
@@ -964,9 +971,34 @@ function Project({ user }) {
                 ]}
               />
             </Form.Item>
-            {briefSections.map((section) => (
-              <div key={section.title}>
-                <Typography.Title level={4}>
+            {briefSections.map((section, index) => (
+              <details
+                key={section.title}
+                open={undefined}
+                style={{
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  background: "#fff",
+                }}
+              >
+                <summary
+                  style={{
+                    cursor: "pointer",
+                    padding: "16px 20px",
+                    background: "#fafafa",
+                    borderRadius: 8,
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 17 }}>
+                    {index + 1}. {section.title}
+                  </span>
+                  <div style={{ color: "#777", fontSize: 13, marginTop: 3 }}>
+                    {sectionGuidance[section.title]}
+                  </div>
+                </summary>
+                <div style={{ padding: "16px 20px 8px" }}>
+                <Typography.Title level={4} style={{ display: "none" }}>
                   {section.title}
                   {section.title === "Progress and decisions" && (
                     <Typography.Text
@@ -1110,8 +1142,22 @@ function Project({ user }) {
                     </Row>
                   </div>
                 )}
-              </div>
+                </div>
+              </details>
             ))}
+            <div
+              style={{
+                position: "sticky",
+                bottom: 0,
+                zIndex: 10,
+                background: "#fff",
+                padding: "12px 16px",
+                borderTop: "1px solid #d9d9d9",
+                boxShadow: "0 -3px 12px rgba(0,0,0,0.06)",
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
             <Space>
               <Button type="primary" htmlType="submit" loading={busy}>
                 Save brief
@@ -1120,6 +1166,7 @@ function Project({ user }) {
                 Cancel
               </Button>
             </Space>
+            </div>
           </Form>
         </Card>
       ) : (
