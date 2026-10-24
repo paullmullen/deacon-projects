@@ -974,7 +974,7 @@ function Project({ user }) {
             {briefSections.map((section, index) => (
               <details
                 key={section.title}
-                open={undefined}
+                defaultOpen={index === 0}
                 style={{
                   border: "1px solid #d9d9d9",
                   borderRadius: 8,
@@ -998,7 +998,7 @@ function Project({ user }) {
                   </div>
                 </summary>
                 <div style={{ padding: "16px 20px 8px" }}>
-                <Typography.Title level={4} style={{ display: "none" }}>
+                <Typography.Title level={5} style={{ display: section.title === "Progress and decisions" ? "block" : "none", marginTop: 0 }}>
                   {section.title}
                   {section.title === "Progress and decisions" && (
                     <Typography.Text
