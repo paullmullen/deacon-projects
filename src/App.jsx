@@ -1188,7 +1188,7 @@ function Project({ user }) {
                       Project Team Deliverables
                     </Typography.Title>
                     <Typography.Paragraph type="secondary">
-                      What has the Council asked the project team to produce or accomplish?
+                      What is the project team being asked to produce or accomplish?
                     </Typography.Paragraph>
                     <Row gutter={[24, 12]} align="top">
                       <Col xs={24} md={12}>
