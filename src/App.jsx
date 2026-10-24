@@ -301,29 +301,20 @@ function Dashboard({ user }) {
         {statuses
           .filter((status) => isMember || status !== "draft")
           .map((status) => (
-            <Col xs={12} sm={isMember && orgId === "elmbrook" ? 8 : 6} lg={isMember && orgId === "elmbrook" ? 4 : 6} key={status}>
+            <Col xs={12} sm={6} key={status}>
               <Card size="small">
                 <Statistic title={statusLabel(status)} value={count(status)} />
               </Card>
             </Col>
           ))}
-        {isMember && orgId === "elmbrook" && (
-          <Col xs={12} sm={8} lg={4}>
-            <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer"
-              aria-label="Open Capital Budget spreadsheet in OneDrive"
-              style={{ display: "block", height: "100%", color: "inherit" }}>
-              <Card size="small" hoverable style={{ height: "100%" }}>
-                <Space direction="vertical" size={4} style={{ width: "100%" }}>
-                  <Typography.Text type="secondary">Capital Budget</Typography.Text>
-                  <Typography.Text strong style={{ fontSize: 18 }}>
-                    ↗ Spreadsheet
-                  </Typography.Text>
-                </Space>
-              </Card>
-            </a>
-          </Col>
-        )}
       </Row>
+      {isMember && orgId === "elmbrook" && (
+        <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
+          <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer">
+            Capital Budget ↗
+          </a>
+        </div>
+      )}
       <MembershipStatus orgId={orgId} user={user} role={role} />
       <Space wrap>
         <Input.Search
