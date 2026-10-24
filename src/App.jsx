@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Form,
   Input,
   Layout,
@@ -478,6 +479,22 @@ function NewDraft({ user }) {
     </Card>
   );
 }
+const deliverableCategories = [
+  "Research report / assessment",
+  "Recommendation / proposal",
+  "Project plan",
+  "Project management / coordination",
+  "Implemented solution",
+  "Ongoing operational responsibility",
+  "Other",
+];
+const sectionGuidance = {
+  "Project overview": "What is this project, and why does it matter?",
+  "Leadership and stakeholders": "Who is leading, sponsoring, and participating?",
+  "Schedule and outcomes": "What should the team deliver, and when?",
+  "Assumptions and barriers": "What must be true, and what might prevent success?",
+  "Progress and decisions": "What has happened, and what needs to happen next?",
+};
 const briefSections = [
   {
     title: "Project overview",
@@ -511,7 +528,7 @@ const briefSections = [
       ["targetDate", "Expected completion date (YYYY-MM-DD)", "date"],
       ["actualDate", "Actual completion date (YYYY-MM-DD)", "date"],
       ["nextReviewDate", "Next review date (YYYY-MM-DD)", "date"],
-      ["expectedOutcome", "Expected outcomes and deliverables", "long", 1000],
+      ["expectedOutcome", "Describe the expected deliverable", "long", 1000],
     ],
   },
   {
@@ -737,6 +754,7 @@ function Project({ user }) {
     }
     form.setFieldsValue({
       ...existing,
+      deliverableCategories: Array.isArray(project.deliverableCategories) ? project.deliverableCategories : [],
       visibility: project.visibility || "private",
       assumptionsTable:
         project.assumptionsTable ||
@@ -751,6 +769,7 @@ function Project({ user }) {
     const fields = Object.fromEntries(
       briefKeys.map((k) => [k, (values[k] || "").trim()]),
     );
+    const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
     const assumptionsTable = cleanRows(values.assumptionsTable, [
       "assumption",
       "status",
@@ -780,6 +799,7 @@ function Project({ user }) {
     try {
       await updateDoc(doc(db, "organizations", orgId, "projects", projectId), {
         ...fields,
+        deliverableCategories: selectedDeliverables,
         assumptionsTable,
         nextStepsTable,
         ...legacyDeliverables,
@@ -790,6 +810,7 @@ function Project({ user }) {
       setProject((p) => ({
         ...p,
         ...fields,
+        deliverableCategories: selectedDeliverables,
         assumptionsTable,
         nextStepsTable,
         ...legacyDeliverables,
@@ -957,9 +978,34 @@ function Project({ user }) {
                 ]}
               />
             </Form.Item>
-            {briefSections.map((section) => (
-              <div key={section.title}>
-                <Typography.Title level={4}>
+            {briefSections.map((section, index) => (
+              <details
+                key={section.title}
+                defaultOpen={index === 0}
+                style={{
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  background: "#fff",
+                }}
+              >
+                <summary
+                  style={{
+                    cursor: "pointer",
+                    padding: "16px 20px",
+                    background: "#fafafa",
+                    borderRadius: 8,
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 17 }}>
+                    {index + 1}. {section.title}
+                  </span>
+                  <div style={{ color: "#777", fontSize: 13, marginTop: 3 }}>
+                    {sectionGuidance[section.title]}
+                  </div>
+                </summary>
+                <div style={{ padding: "16px 20px 8px" }}>
+                <Typography.Title level={5} style={{ display: section.title === "Progress and decisions" ? "block" : "none", marginTop: 0 }}>
                   {section.title}
                   {section.title === "Progress and decisions" && (
                     <Typography.Text
@@ -1037,13 +1083,15 @@ function Project({ user }) {
                     </div>
                   </div>
                 )}
-                {section.fields.map(([key, label, kind, limit]) => (
+                {section.fields.filter(([key]) => key !== "expectedOutcome").map(([key, label, kind, limit]) => (
                   <Form.Item
                     key={key}
                     name={key}
                     label={label}
                     extra={
-                      key === "stakeholders"
+                      key === "expectedOutcome"
+                        ? "Be specific about what the team is expected to deliver. This is different from why the project matters."
+                        : key === "stakeholders"
                         ? "Who will be affected by the outcome of this project?"
                         : kind === "long" && ["longDescription", "purpose", "scope", "accomplishments", "barriers", "decisionsNeeded"].includes(key)
                           ? "Formatting: **bold**, *italic*, - bullets, 1. numbered steps, ### headings, [link](https://example.com)."
@@ -1071,8 +1119,52 @@ function Project({ user }) {
                     )}
                   </Form.Item>
                 ))}
-              </div>
+                {section.title === "Schedule and outcomes" && (
+                  <div style={{ marginTop: 16 }}>
+                    <Typography.Title level={5} style={{ marginBottom: 4 }}>
+                      Project Team Deliverables
+                    </Typography.Title>
+                    <Typography.Paragraph type="secondary">
+                      What has the Council asked the project team to produce or accomplish?
+                    </Typography.Paragraph>
+                    <Row gutter={[24, 12]} align="top">
+                      <Col xs={24} md={12}>
+                        <Form.Item name="deliverableCategories" label="Type of deliverable">
+                          <Checkbox.Group
+                            options={deliverableCategories}
+                            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="expectedOutcome"
+                          label="Describe the expected deliverable"
+                          extra="Be specific about what the team should deliver, rather than why the project matters."
+                          rules={[{ max: 1000 }]}
+                        >
+                          <Input.TextArea rows={7} maxLength={1000} showCount />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </div>
+                )}
+                </div>
+              </details>
             ))}
+            <div
+              style={{
+                position: "sticky",
+                bottom: 0,
+                zIndex: 10,
+                background: "#fff",
+                padding: "12px 16px",
+                borderTop: "1px solid #d9d9d9",
+                boxShadow: "0 -3px 12px rgba(0,0,0,0.06)",
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
             <Space>
               <Button type="primary" htmlType="submit" loading={busy}>
                 Save brief
@@ -1081,6 +1173,7 @@ function Project({ user }) {
                 Cancel
               </Button>
             </Space>
+            </div>
           </Form>
         </Card>
       ) : (

@@ -160,8 +160,15 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
       <div className="brief-meta">
         <Meta label="Project lead">{text(project.leadDeacon)}</Meta>
         <Meta label="Current status">{status}</Meta>
-        <Meta label="Expected outcomes and deliverables">
-          {text(project.expectedOutcome || project.deliverables)}
+        <Meta label="Project team deliverables">
+          <div>
+            {Array.isArray(project.deliverableCategories) && project.deliverableCategories.length > 0 && (
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                {project.deliverableCategories.join(" · ")}
+              </div>
+            )}
+
+          </div>
         </Meta>
         <Meta label="Project team">{text(project.teamMembers)}</Meta>
         <Meta label="Kick-off">{date(project.kickoffDate)}</Meta>
