@@ -110,7 +110,7 @@ export function AuthPage({ user, mode = "login" }) {
     >
       <Typography.Paragraph type="secondary">
         {mode === "register"
-          ? "Create an account, verify your email, then request access to the Elmbrook project portfolio. An administrator will review your request."
+          ? "Create an account, verify your email, then request access to your organization's project portfolio. An administrator will review your request."
           : mode === "reset"
             ? "Enter your account email and we’ll send password reset instructions."
             : "Sign in to view your organization’s projects and manage work assigned to you."}
@@ -258,7 +258,9 @@ export function MembershipStatus({ orgId, user, role }) {
             : "Request access to this organization"
       }
       description={
-        state === "pending"
+        state === null
+          ? "Checking your membership status…"
+          : state === "pending"
           ? "An organization administrator will review your request. You can return to this page later to check its status."
           : state === "rejected"
             ? "Please contact an organization administrator if you believe this is an error."
