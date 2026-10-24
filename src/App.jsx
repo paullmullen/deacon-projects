@@ -310,8 +310,8 @@ function Dashboard({ user }) {
       </Row>
       {isMember && orgId === "elmbrook" && (
         <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
-          <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer">
-            Capital Budget ↗
+          <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 18 }}>
+            Open Capital Budget ↗
           </a>
         </div>
       )}
