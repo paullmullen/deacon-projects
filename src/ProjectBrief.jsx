@@ -1,5 +1,6 @@
 import React from "react";
 import "./ProjectBrief.css";
+import MarkdownText from "./MarkdownText";
 
 const text = (value) =>
   typeof value === "string" && value.trim() ? value.trim() : "—";
@@ -48,7 +49,7 @@ function Block({ heading, value, bullets = false }) {
           ))}
         </ul>
       ) : (
-        <p>{text(value)}</p>
+        <MarkdownText value={value} />
       )}
     </section>
   );

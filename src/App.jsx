@@ -127,8 +127,8 @@ function Shell({ user, children }) {
   return (
     <Layout className="shell">
       <Header className="top">
-        <Link to="/" className="brand">
-          DeaconProjects
+        <Link to={`/org/${currentOrgId}`} className="brand">
+          Deacon Projects
         </Link>
         <Space>
           {user ? (
@@ -1033,7 +1033,9 @@ function Project({ user }) {
                     extra={
                       key === "stakeholders"
                         ? "Who will be affected by the outcome of this project?"
-                        : undefined
+                        : kind === "long" && ["longDescription", "purpose", "scope", "accomplishments", "barriers", "decisionsNeeded"].includes(key)
+                          ? "Formatting: **bold**, *italic*, - bullets, 1. numbered steps, ### headings, [link](https://example.com)."
+                          : undefined
                     }
                     rules={
                       key === "title"
