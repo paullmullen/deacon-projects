@@ -316,7 +316,8 @@ function Dashboard({ user }) {
         </div>
       )}
       <MembershipStatus orgId={orgId} user={user} role={role} />
-      <Space wrap>
+      <div style={{ borderTop: "1px solid #d9d9d9", marginTop: 6, paddingTop: 24, display: "flex", justifyContent: "center" }}>
+        <Space wrap style={{ justifyContent: "center" }}>
         <Input.Search
           allowClear
           placeholder="Search projects"
@@ -327,7 +328,7 @@ function Dashboard({ user }) {
         />
         {canEdit && (
           <Link to={`/org/${orgId}/new`}>
-            <Button type="primary">New draft</Button>
+            <Button type="primary">Draft a new project</Button>
           </Link>
         )}
         {isMember && archived.length > 0 && (
@@ -337,7 +338,8 @@ function Dashboard({ user }) {
               : `Archived proposals (${archived.length})`}
           </Button>
         )}
-      </Space>
+        </Space>
+      </div>
       {error && (
         <Alert
           type="error"
