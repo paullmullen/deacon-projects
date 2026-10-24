@@ -315,6 +315,13 @@ function Dashboard({ user }) {
           </a>
         </div>
       )}
+      {role === "admin" && (
+        <div style={{ textAlign: "right" }}>
+          <Link to={`/org/${orgId}/admin/users`}>
+            <Button>Manage users</Button>
+          </Link>
+        </div>
+      )}
       <MembershipStatus orgId={orgId} user={user} role={role} />
       <div style={{ borderTop: "1px solid #d9d9d9", marginTop: 6, paddingTop: 24, display: "flex", justifyContent: "center" }}>
         <Space wrap style={{ justifyContent: "center" }}>
