@@ -601,6 +601,14 @@ function RowEditor({ name, columns }) {
     </Form.List>
   );
 }
+const validDocumentUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+};
 const briefKeys = briefSections.flatMap((s) => s.fields.map((f) => f[0]));
 function Project({ user }) {
   const { orgId, projectId } = useParams();
@@ -748,6 +756,7 @@ function Project({ user }) {
     form.setFieldsValue({
       ...existing,
       deliverableCategories: Array.isArray(project.deliverableCategories) ? project.deliverableCategories : [],
+      supportingDocuments: Array.isArray(project.supportingDocuments) ? project.supportingDocuments : [],
       visibility: project.visibility || "private",
       assumptionsTable:
         project.assumptionsTable ||
@@ -762,6 +771,20 @@ function Project({ user }) {
     const fields = Object.fromEntries(
       briefKeys.map((k) => [k, (values[k] || "").trim()]),
     );
+    const supportingDocuments = (values.supportingDocuments || [])
+      .map((row) => ({
+        title: String(row?.title || "").trim(),
+        description: String(row?.description || "").trim(),
+        url: String(row?.url || "").trim(),
+        addedBy: row?.addedBy || user.email || user.uid,
+        addedAt: row?.addedAt || new Date().toISOString(),
+      }))
+      .filter((row) => row.title || row.url || row.description);
+    if (supportingDocuments.length > 20 ||
+        supportingDocuments.some((row) => !row.title || !validDocumentUrl(row.url))) {
+      message.error("Each supporting document needs a title and a valid HTTPS link (maximum 20).");
+      return;
+    }
     const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
     const assumptionsTable = cleanRows(values.assumptionsTable, [
       "assumption",
@@ -793,6 +816,7 @@ function Project({ user }) {
       await updateDoc(doc(db, "organizations", orgId, "projects", projectId), {
         ...fields,
         deliverableCategories: selectedDeliverables,
+        supportingDocuments,
         assumptionsTable,
         nextStepsTable,
         ...legacyDeliverables,
@@ -804,6 +828,7 @@ function Project({ user }) {
         ...p,
         ...fields,
         deliverableCategories: selectedDeliverables,
+        supportingDocuments,
         assumptionsTable,
         nextStepsTable,
         ...legacyDeliverables,
@@ -1112,6 +1137,45 @@ function Project({ user }) {
                     )}
                   </Form.Item>
                 ))}
+                {section.title === "Progress and decisions" && (
+                  <div style={{ marginBottom: 20 }}>
+                    <Typography.Title level={5}>Supporting Documents</Typography.Title>
+                    <Typography.Paragraph type="secondary">
+                      Link to OneDrive, SharePoint, or other HTTPS documents. Access to each document is managed by its hosting service.
+                    </Typography.Paragraph>
+                    <Form.List name="supportingDocuments">
+                      {(fields, { add, remove }) => (
+                        <Space direction="vertical" style={{ width: "100%" }}>
+                          {fields.map(({ key, name, ...rest }) => (
+                            <Card key={key} size="small">
+                              <Row gutter={12}>
+                                <Col xs={24} md={10}>
+                                  <Form.Item {...rest} name={[name, "title"]} label="Document title" rules={[{ required: true, max: 160 }]}>
+                                    <Input maxLength={160} placeholder="e.g. Council recommendation" />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={14}>
+                                  <Form.Item {...rest} name={[name, "url"]} label="Document link" rules={[{ required: true }, { type: "url", message: "Enter a valid URL" }, { validator: (_, value) => !value || validDocumentUrl(value) ? Promise.resolve() : Promise.reject(new Error("Use an HTTPS link")) }]}>
+                                    <Input placeholder="https://..." maxLength={2000} />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24}>
+                                  <Form.Item {...rest} name={[name, "description"]} label="Description (optional)" rules={[{ max: 500 }]}>
+                                    <Input maxLength={500} />
+                                  </Form.Item>
+                                </Col>
+                              </Row>
+                              <Form.Item name={[name, "addedBy"]} hidden><Input /></Form.Item>
+                              <Form.Item name={[name, "addedAt"]} hidden><Input /></Form.Item>
+                              <Button danger onClick={() => remove(name)}>Remove document</Button>
+                            </Card>
+                          ))}
+                          {fields.length < 20 && <Button onClick={() => add({})}>+ Add document link</Button>}
+                        </Space>
+                      )}
+                    </Form.List>
+                  </div>
+                )}
                 {section.title === "Schedule and outcomes" && (
                   <div style={{ marginTop: 16 }}>
                     <Typography.Title level={5} style={{ marginBottom: 4 }}>
