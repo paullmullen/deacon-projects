@@ -487,6 +487,7 @@ const sectionGuidance = {
   "Schedule and outcomes": "What should the team deliver, and when?",
   "Assumptions and barriers": "What must be true, and what might prevent success?",
   "Progress and decisions": "What has happened, and what needs to happen next?",
+  "Supporting documents": "Where can readers find the relevant source material?",
 };
 const briefSections = [
   {
@@ -527,6 +528,10 @@ const briefSections = [
   {
     title: "Assumptions and barriers",
     fields: [["barriers", "Barriers, blockers and dependencies", "long", 1000]],
+  },
+  {
+    title: "Supporting documents",
+    fields: [],
   },
   {
     title: "Progress and decisions",
@@ -783,6 +788,7 @@ function Project({ user }) {
     if (supportingDocuments.length > 20 ||
         supportingDocuments.some((row) => !row.title || !validDocumentUrl(row.url))) {
       message.error("Each supporting document needs a title and a valid HTTPS link (maximum 20).");
+      setBusy(false);
       return;
     }
     const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
@@ -1137,7 +1143,7 @@ function Project({ user }) {
                     )}
                   </Form.Item>
                 ))}
-                {section.title === "Progress and decisions" && (
+                {section.title === "Supporting documents" && (
                   <div style={{ marginBottom: 20 }}>
                     <Typography.Title level={5}>Supporting Documents</Typography.Title>
                     <Typography.Paragraph type="secondary">
