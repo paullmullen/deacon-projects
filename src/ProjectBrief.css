@@ -5,3 +5,11 @@
 @media print{html,body,#root{margin:0!important;padding:0!important;background:white!important}body *{visibility:hidden!important}.project-brief,.project-brief *{visibility:visible!important}.project-brief{position:absolute;top:0;left:0;max-width:none;width:8.5in;min-height:11in;box-shadow:none!important;padding:0.47in 0.47in 0.42in;print-color-adjust:exact;-webkit-print-color-adjust:exact}.brief-top-rule{margin-bottom:34px}.brief-block,.brief-decision,.brief-meta-item{break-inside:avoid}.brief-footer{break-inside:avoid}}
 
 @media print {.ant-modal-root,.ant-card{display:none!important}}
+
+/* Markdown list markers: only unordered lists receive bullets. */
+.project-brief .brief-markdown ul{list-style:disc;padding-left:22px;margin:5px 0 10px}
+.project-brief .brief-markdown ol{list-style:decimal;padding-left:26px;margin:5px 0 10px}
+.project-brief .brief-markdown li{padding-left:0;margin-bottom:4px}
+.project-brief .brief-markdown li::before{content:none}
+.project-brief .brief-markdown p{margin:0 0 8px;white-space:normal}
+.project-brief .brief-markdown > :last-child{margin-bottom:0}
