@@ -69,6 +69,7 @@ const remainingTime = (value, now = new Date()) => {
   return days > 0 ? `${duration} remaining` : `${duration} overdue`;
 };
 
+const capitalBudgetUrl = "https://elmbrookchurch-my.sharepoint.com/:x:/g/personal/rheld_elmbrook_org/IQBDBKgsfLDoR6JVwCsc8s79AcS2Dm89FMkHGbgB1ThLuQk?e=wY3RIN&nav=MTVfe0VEMzVGOEE3LTQxMjYtRDA0OC04RTdFLTkwRTc4NENDMENGRH0";
 const publicStatuses = ["proposed", "active", "closed"];
 const statusLabel = (status) =>
   status ? status[0].toUpperCase() + status.slice(1) : "Unknown";
@@ -307,13 +308,16 @@ function Dashboard({ user }) {
             </Col>
           ))}
       </Row>
-      <MembershipStatus orgId={orgId} user={user} role={role} />
-      {role === "admin" && (
-        <Link to={`/org/${orgId}/admin/users`}>
-          <Button>Manage users and email settings</Button>
-        </Link>
+      {isMember && orgId === "elmbrook" && (
+        <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
+          <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 18 }}>
+            Open Capital Budget ↗
+          </a>
+        </div>
       )}
-      <Space wrap>
+      <MembershipStatus orgId={orgId} user={user} role={role} />
+      <div style={{ borderTop: "1px solid #d9d9d9", marginTop: 6, paddingTop: 24, display: "flex", justifyContent: "center" }}>
+        <Space wrap style={{ justifyContent: "center" }}>
         <Input.Search
           allowClear
           placeholder="Search projects"
@@ -324,7 +328,7 @@ function Dashboard({ user }) {
         />
         {canEdit && (
           <Link to={`/org/${orgId}/new`}>
-            <Button type="primary">New draft</Button>
+            <Button type="primary">Draft a new project</Button>
           </Link>
         )}
         {isMember && archived.length > 0 && (
@@ -334,7 +338,8 @@ function Dashboard({ user }) {
               : `Archived proposals (${archived.length})`}
           </Button>
         )}
-      </Space>
+        </Space>
+      </div>
       {error && (
         <Alert
           type="error"
