@@ -127,8 +127,8 @@ function Shell({ user, children }) {
   return (
     <Layout className="shell">
       <Header className="top">
-        <Link to="/" className="brand">
-          DeaconProjects
+        <Link to={`/org/${currentOrgId}`} className="brand">
+          Deacon Projects
         </Link>
         <Space>
           {user ? (
