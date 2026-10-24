@@ -222,6 +222,32 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
         </div>
       </div>
       <section className="brief-block" style={{ marginTop: 16 }}>
+        <h2>Supporting Documents</h2>
+        {Array.isArray(project.supportingDocuments) && project.supportingDocuments.length ? (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.92em" }}>
+            <thead><tr>
+              {["Document", "Description", "Added by", "Date"].map((label) => (
+                <th key={label} style={{ textAlign: "left", borderBottom: "1px solid #bbb", padding: "5px 8px 5px 0" }}>{label}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {project.supportingDocuments.map((document, index) => (
+                <tr key={index}>
+                  <td style={{ padding: "6px 8px 6px 0", overflowWrap: "anywhere" }}>
+                    {typeof document.url === "string" && document.url.startsWith("https://") ? (
+                      <a href={document.url} target="_blank" rel="noopener noreferrer">{text(document.title)}</a>
+                    ) : text(document.title)}
+                  </td>
+                  <td style={{ padding: "6px 8px 6px 0" }}>{text(document.description)}</td>
+                  <td style={{ padding: "6px 8px 6px 0" }}>{text(document.addedBy)}</td>
+                  <td style={{ padding: "6px 8px 6px 0" }}>{document.addedAt ? new Date(document.addedAt).toLocaleDateString("en-US") : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <p>—</p>}
+      </section>
+      <section className="brief-block" style={{ marginTop: 16 }}>
         <h2 style={{ marginBottom: 12 }}>Project assumptions and next steps</h2>
         <div
           style={{
