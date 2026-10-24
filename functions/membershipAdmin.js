@@ -1,17 +1,11 @@
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
 const {getFirestore,FieldValue}=require('firebase-admin/firestore');
 const {getAuth}=require('firebase-admin/auth');
-const {createHash}=require('node:crypto');
+const {ROLES,validOrg,validUid,normalizeEmail,validEmail,clean,inviteId,canAdmin,roleChangeAllowed}=require('./membershipPolicy');
 const {sendEmail,emailSecrets}=require('./emailTransport');
 
 const REGION='us-central1';
-const ROLES=['viewer','editor','admin'];
-const validOrg=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(v);
-const validUid=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,128}$/.test(v);
-const normalizeEmail=v=>typeof v==='string'?v.trim().toLowerCase():'';
-const validEmail=v=>v.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const fail=(code,msg)=>{throw new HttpsError(code,msg);};
-const clean=v=>String(v||'').replace(/[\r\n]/g,' ').trim();
 const appUrl=(process.env.PROJECT_APP_URL||'https://deaconprojects.web.app').replace(/\/$/,'');
 const callable=(handler,secrets=[])=>onCall({region:REGION,secrets,invoker:'public'},async request=>{
   if(!request.auth)fail('unauthenticated','Sign in first.');
@@ -21,11 +15,10 @@ const callable=(handler,secrets=[])=>onCall({region:REGION,secrets,invoker:'publ
 });
 async function adminOnly(req,orgId,db){
   const snap=await db.doc(`organizations/${orgId}/members/${req.auth.uid}`).get();
-  if(!snap.exists||snap.get('role')!=='admin')fail('permission-denied','Organization administrator required.');
+  if(!snap.exists||!canAdmin(snap.get('role')))fail('permission-denied','Organization administrator required.');
 }
 const memberRef=(db,orgId,uid)=>db.doc(`organizations/${orgId}/members/${uid}`);
 const requestRef=(db,orgId,uid)=>db.doc(`organizations/${orgId}/membershipRequests/${uid}`);
-const inviteId=email=>createHash('sha256').update(email).digest('hex');
 const profile=user=>({email:user.email||'',displayName:user.displayName||user.email||''});
 
 exports.requestMembership=callable(async(req,orgId,db)=>{
@@ -93,7 +86,7 @@ exports.changeMemberRole=callable(async(req,orgId,db)=>{
   await db.runTransaction(async tx=>{
     const [target,admins]=await Promise.all([tx.get(members.doc(uid)),tx.get(members.where('role','==','admin'))]);
     if(!target.exists)fail('not-found','Member not found.');
-    if(target.get('role')==='admin'&&role!=='admin'&&admins.size<=1)fail('failed-precondition','Cannot remove the last administrator.');
+    if(!roleChangeAllowed({actorUid:req.auth.uid,targetUid:uid,targetRole:target.get('role'),newRole:role,adminCount:admins.size}))fail('failed-precondition','Role change would violate administrator protections.');
     tx.update(members.doc(uid),{role,updatedAt:FieldValue.serverTimestamp(),updatedBy:req.auth.uid});
   });
   return {ok:true};

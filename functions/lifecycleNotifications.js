@@ -34,6 +34,8 @@ exports.notifyProjectLifecycle = onDocumentCreated({
   const historySnap = await historyRef.get();
   if (!historySnap.exists || historySnap.data().actorUid !== data.actorUid) return;
   const members = await db.collection(`organizations/${orgId}/members`).get();
+  const emailSettingsSnap = await db.doc(`organizations/${orgId}/settings/email`).get();
+  const emailSettings = emailSettingsSnap.exists ? emailSettingsSnap.data() : {};
   let actor = 'A team member';
   try {const u=await getAuth().getUser(data.actorUid);actor=u.displayName||u.email||actor;} catch(e) {logger.warn('Actor lookup failed',{uid:data.actorUid,code:e.code});}
   const title = String(project.title || 'Untitled project');
@@ -59,7 +61,7 @@ exports.notifyProjectLifecycle = onDocumentCreated({
     });
     if(!claimed){skipped++;continue;}
     try{
-      const result=await sendEmail({to:email,subject,text,html});
+      const result=await sendEmail({to:email,subject,text,html,replyTo:emailSettings.replyToEmail || undefined,replyToName:emailSettings.replyToName || undefined});
       await deliveryRef.update({status:'sent',sentAt:FieldValue.serverTimestamp(),messageId:result.messageId||null});
       sent++;
     }catch(error){

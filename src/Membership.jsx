@@ -273,6 +273,7 @@ export function MembershipStatus({ orgId, user, role }) {
 export function AdminUsers({ user }) {
   const { orgId } = useParams();
   const [role, setRole] = useState(null);
+  const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const [members, setMembers] = useState([]);
@@ -280,11 +281,13 @@ export function AdminUsers({ user }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
-    const [a, b, c] = await Promise.all([
+    const [a, b, c, organization] = await Promise.all([
       getDocs(collection(db, "organizations", orgId, "membershipRequests")),
       getDocs(collection(db, "organizations", orgId, "members")),
       getDoc(doc(db, "organizations", orgId, "settings", "email")),
+      getDoc(doc(db, "organizations", orgId)),
     ]);
+    setOrgName(organization.exists() ? organization.data().name || "" : "");
     setRequests(
       a.docs
         .map((x) => ({ uid: x.id, ...x.data() }))
@@ -331,7 +334,7 @@ export function AdminUsers({ user }) {
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Typography.Title level={2}>
-        User administration · {orgId}
+        User administration · {orgName || orgId}
       </Typography.Title>
       <Card title={`Pending requests (${requests.length})`}>
         <Table
@@ -447,10 +450,6 @@ export function AdminUsers({ user }) {
             </Button>
           </Space>
         </Form>
-        <Typography.Text type="secondary">
-          SMTP2GO sender credentials are shared across tenants. Reply-To is
-          tenant-specific.
-        </Typography.Text>
       </Card>
     </Space>
   );
