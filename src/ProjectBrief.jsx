@@ -167,7 +167,7 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
                 {project.deliverableCategories.join(" · ")}
               </div>
             )}
-            <div>{text(project.expectedOutcome || project.deliverables)}</div>
+
           </div>
         </Meta>
         <Meta label="Project team">{text(project.teamMembers)}</Meta>
