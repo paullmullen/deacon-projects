@@ -587,7 +587,6 @@ const briefSections = [
     fields: [
       ["leadDeacon", "Project lead / Lead Deacon", "short"],
       ["projectSponsor", "Project sponsor(s)", "long", 500],
-      ["statusNote", "Status note (e.g. On schedule)", "short", 100],
       [
         "stakeholders",
         "Key stakeholders (name — role, one per line)",
@@ -600,6 +599,7 @@ const briefSections = [
   {
     title: "Schedule and outcomes",
     fields: [
+      ["statusNote", "Status note (e.g. On schedule)", "short", 100],
       ["kickoffDate", "Commissioned / kickoff date (YYYY-MM-DD)", "date"],
       ["targetDate", "Expected completion date (YYYY-MM-DD)", "date"],
       ["actualDate", "Actual completion date (YYYY-MM-DD)", "date"],
