@@ -72,7 +72,7 @@ exports.inviteMember=callable(async(req,orgId,db)=>{
   const existing=await ref.get();
   if(existing.exists&&existing.get('claimedBy'))fail('failed-precondition','Invitation already accepted. Manage this user in Current members.');
   await ref.set({email,role,invitedBy:req.auth.uid,createdAt:FieldValue.serverTimestamp(),revoked:false},{merge:true});
-  const link=`${appUrl}/org/${encodeURIComponent(orgId)}/login`;
+  const link=`${appUrl}/org/${encodeURIComponent(orgId)}/invite?email=${encodeURIComponent(email)}`;
   try{
     await sendEmail({to:email,subject:'Invitation to DeaconProjects',text:`You have been invited to join ${orgId} on DeaconProjects.\n\nSign in or create an account with this email, then verify your email. Your ${role} access will be activated automatically.\n\n${link}\n`});
   }catch(error){
