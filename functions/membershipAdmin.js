@@ -15,7 +15,7 @@ const callable=(handler,secrets=[])=>onCall({region:REGION,secrets,invoker:'publ
 });
 async function adminOnly(req,orgId,db){
   const snap=await db.doc(`organizations/${orgId}/members/${req.auth.uid}`).get();
-  if(!snap.exists||!canAdmin(snap.get('role')))fail('permission-denied','Organization administrator required.');
+  if(!snap.exists||snap.get('status')==='inactive'||!canAdmin(snap.get('role')))fail('permission-denied','Organization administrator required.');
 }
 const memberRef=(db,orgId,uid)=>db.doc(`organizations/${orgId}/members/${uid}`);
 const requestRef=(db,orgId,uid)=>db.doc(`organizations/${orgId}/membershipRequests/${uid}`);
@@ -30,7 +30,7 @@ exports.requestMembership=callable(async(req,orgId,db)=>{
   const inviteRef=db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`);
   const result=await db.runTransaction(async tx=>{
     const [member,prior,invite]=await Promise.all([tx.get(memberRef(db,orgId,user.uid)),tx.get(ref),tx.get(inviteRef)]);
-    if(member.exists)return {status:'member'};
+    if(member.exists)return {status:member.get('status')==='inactive'?'inactive':'member'};
     if(prior.exists&&prior.get('status')==='pending')return {status:'pending'};
     const invited=invite.exists&&invite.get('email')===email;
     tx.set(ref,{uid:user.uid,email,displayName:user.displayName||email,status:'pending',invited,requestedAt:FieldValue.serverTimestamp()},{merge:true});
@@ -53,7 +53,7 @@ exports.claimInvitation=callable(async(req,orgId,db)=>{
   const ref=db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`);
   return db.runTransaction(async tx=>{
     const [invitation,member]=await Promise.all([tx.get(ref),tx.get(memberRef(db,orgId,user.uid))]);
-    if(member.exists)return {status:'member',role:member.get('role')};
+    if(member.exists)return {status:member.get('status')==='inactive'?'inactive':'member',role:member.get('role')};
     if(!invitation.exists||invitation.get('email')!==email||!ROLES.includes(invitation.get('role'))||invitation.get('revoked')===true)return {status:'none'};
     const claimedBy=invitation.get('claimedBy');
     if(claimedBy&&claimedBy!==user.uid)fail('permission-denied','Invitation already claimed.');
@@ -124,8 +124,24 @@ exports.changeMemberRole=callable(async(req,orgId,db)=>{
   await db.runTransaction(async tx=>{
     const [target,admins]=await Promise.all([tx.get(members.doc(uid)),tx.get(members.where('role','==','admin'))]);
     if(!target.exists)fail('not-found','Member not found.');
+    if(target.get('status')==='inactive')fail('failed-precondition','Reactivate the member before changing their role.');
     if(!roleChangeAllowed({actorUid:req.auth.uid,targetUid:uid,targetRole:target.get('role'),newRole:role,adminCount:admins.size}))fail('failed-precondition','Role change would violate administrator protections.');
     tx.update(members.doc(uid),{role,updatedAt:FieldValue.serverTimestamp(),updatedBy:req.auth.uid});
+  });
+  return {ok:true};
+});
+exports.setMemberActive=callable(async(req,orgId,db)=>{
+  await adminOnly(req,orgId,db);
+  const {uid,active}=req.data||{};
+  if(!validUid(uid)||typeof active!=='boolean')fail('invalid-argument','Valid member and status required.');
+  if(uid===req.auth.uid&&!active)fail('failed-precondition','You cannot deactivate your own account.');
+  const members=db.collection(`organizations/${orgId}/members`);
+  await db.runTransaction(async tx=>{
+    const [target,admins]=await Promise.all([tx.get(members.doc(uid)),tx.get(members.where('role','==','admin'))]);
+    if(!target.exists)fail('not-found','Member not found.');
+    const activeAdmins=admins.docs.filter(d=>d.get('status')!=='inactive');
+    if(!active&&target.get('role')==='admin'&&activeAdmins.length<=1)fail('failed-precondition','Cannot deactivate the last active administrator.');
+    tx.update(members.doc(uid),{status:active?'active':'inactive',updatedAt:FieldValue.serverTimestamp(),updatedBy:req.auth.uid});
   });
   return {ok:true};
 });
