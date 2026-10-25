@@ -1302,6 +1302,7 @@ export default function App() {
           path="/org/:orgId/login"
           element={<AuthPage user={user} mode="login" />}
         />
+        <Route path="/org/:orgId/invite" element={<AuthPage user={user} mode="invite" />} />
         <Route
           path="/org/:orgId/register"
           element={<AuthPage user={user} mode="register" />}
