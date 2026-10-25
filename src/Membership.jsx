@@ -475,8 +475,20 @@ export function AdminUsers({ user }) {
             {title:"Email",dataIndex:"email"},
             {title:"Assigned role",dataIndex:"role"},
             {title:"Status",render:(_,r)=>r.revoked?"Revoked":r.claimed?"Accepted":"Awaiting registration"},
-            {title:"Action",render:(_,r)=>r.claimed||r.revoked?null:
-              <Button size="small" disabled={busy} onClick={()=>act("inviteMember",{email:r.email,role:r.role})}>Resend</Button>}
+            {title:"Actions",render:(_,r)=>
+              <Space wrap>
+                {!r.claimed && !r.revoked && <Button size="small" disabled={busy} onClick={()=>act("inviteMember",{email:r.email,role:r.role})}>Resend</Button>}
+                <Popconfirm
+                  title="Remove this invitation?"
+                  description={r.claimed ? "The member's access will not be affected." : "The invitation link will no longer work."}
+                  okText="Remove"
+                  okButtonProps={{danger:true}}
+                  cancelText="Cancel"
+                  onConfirm={()=>act("removeInvitation",{email:r.email})}
+                >
+                  <Button size="small" danger disabled={busy}>Remove</Button>
+                </Popconfirm>
+              </Space>}
           ]}/>
       </Card>
       <Card title="Current members">
