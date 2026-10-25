@@ -195,11 +195,8 @@ export function EmailVerification({ user }) {
     try {
       await reload(user);
       if (user.emailVerified) await user.getIdToken(true);
-      message.info(
-        user.emailVerified
-          ? "Email verified. Refresh the page to continue."
-          : "Not verified yet. Check your inbox.",
-      );
+      if (user.emailVerified) { window.location.reload(); return; }
+      message.info("Not verified yet. Check your inbox.");
     } catch (e) {
       message.error(e.message);
     } finally {
