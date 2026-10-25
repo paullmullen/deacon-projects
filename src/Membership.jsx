@@ -37,7 +37,16 @@ export function AuthPage({ user, mode = "login" }) {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [searchParams] = useSearchParams();
-  const invitedEmail = mode === "invite" ? (searchParams.get("email") || "").trim() : "";
+  const invitationToken = mode === "invite" ? (searchParams.get("token") || "") : "";
+  const [invitedEmail, setInvitedEmail] = useState("");
+  const [invitationError, setInvitationError] = useState("");
+  useEffect(() => {
+    if (mode !== "invite") return;
+    if (!invitationToken) { setInvitationError("Missing secure invitation token. Ask your administrator to resend the invitation."); return; }
+    call("previewInvitation", {orgId, token:invitationToken})
+      .then(r => {setInvitedEmail(r.data.email);form.setFieldValue("email",r.data.email);})
+      .catch(() => setInvitationError("Invitation invalid, expired, or already accepted. Ask your administrator to resend it."));
+  }, [mode,orgId,invitationToken,form]);
   const registration = mode === "register" || mode === "invite";
   const prefilledEmail = searchParams.get("email") || "";
   const [busy, setBusy] = useState(false);
@@ -55,10 +64,15 @@ export function AuthPage({ user, mode = "login" }) {
           v.password,
         );
         await updateProfile(cred.user, { displayName: v.displayName.trim() });
-        await call("sendBrandedVerification", {orgId});
-        setNotice(
-          "Account created. Check your inbox for a verification email, then return to the portfolio. Invitations activate automatically; otherwise request access.",
-        );
+        if (mode === "invite") {
+          await call("acceptInvitation", {orgId, token:invitationToken});
+          await reload(cred.user);
+          await cred.user.getIdToken(true);
+          navigate(`/org/${encodeURIComponent(orgId)}`, {replace:true});
+        } else {
+          await call("sendBrandedVerification", {orgId});
+          setNotice("Account created. Check your inbox for a verification email, then return to the portfolio.");
+        }
       } else if (mode === "reset") {
         await call("sendBrandedPasswordReset", {orgId, email: v.email.trim()});
         setNotice(
@@ -66,6 +80,12 @@ export function AuthPage({ user, mode = "login" }) {
         );
       } else {
         await signInWithEmailAndPassword(auth, v.email.trim(), v.password);
+        const token=searchParams.get("token");
+        if (token) {
+          await call("acceptInvitation", {orgId,token});
+          await reload(auth.currentUser);
+          await auth.currentUser.getIdToken(true);
+        }
 
         navigate(`/org/${encodeURIComponent(orgId)}`, {
           replace: true,
@@ -115,7 +135,7 @@ export function AuthPage({ user, mode = "login" }) {
     >
       <Typography.Paragraph type="secondary">
         {mode === "invite"
-          ? "You have been invited to DeaconProjects. Create your account and choose a password. After verifying your email, your assigned access activates automatically. Already have an account? Sign in below."
+          ? "You have been invited to DeaconProjects. Create your account and choose a password. Your invitation confirms your email address; no second verification email is needed. Already have an account? Sign in below."
           : mode === "register"
           ? "Create an account, verify your email, then return to the portfolio. Invited users receive access automatically after verification; other users request approval."
           : mode === "reset"
@@ -140,7 +160,7 @@ export function AuthPage({ user, mode = "login" }) {
           </Form.Item>
         )}
         <Form.Item
-          initialValue={invitedEmail || prefilledEmail || undefined}
+          initialValue={mode === "invite" ? undefined : prefilledEmail || undefined}
           label="Email"
           name="email"
           rules={[{ required: true, type: "email" }]}
@@ -161,7 +181,7 @@ export function AuthPage({ user, mode = "login" }) {
           </Form.Item>
         )}
         {mode === "invite" && <Form.Item label="Confirm password" name="confirmPassword" dependencies={["password"]} rules={[{required:true},({getFieldValue})=>({validator(_,value){return value===getFieldValue("password")?Promise.resolve():Promise.reject(new Error("Passwords do not match"));}})]}><Input.Password autoComplete="new-password" /></Form.Item>}
-        <Button type="primary" htmlType="submit" loading={busy}>
+        <Button type="primary" htmlType="submit" loading={busy} disabled={mode === "invite" && (!invitedEmail || !!invitationError)}>
           {mode === "invite"
             ? "Create account and set password"
             : mode === "register"
@@ -172,6 +192,7 @@ export function AuthPage({ user, mode = "login" }) {
         </Button>
       </Form>
 
+      {invitationError && <Alert type="error" showIcon message={invitationError} style={{marginTop:12}} />}
       {loginError && (
         <Alert
           type="error"
@@ -190,13 +211,13 @@ export function AuthPage({ user, mode = "login" }) {
         />
       )}
       <Space wrap style={{ marginTop: 16 }}>
-        {mode === "invite" && <Link to={`/org/${orgId}/login?email=${encodeURIComponent(invitedEmail)}`}>Already have an account? Sign in</Link>}
+        {mode === "invite" && <Link to={`/org/${orgId}/login?email=${encodeURIComponent(invitedEmail)}&token=${encodeURIComponent(invitationToken)}`}>Already have an account? Sign in</Link>}
         {mode !== "login" && mode !== "invite" && <Link to={`/org/${orgId}/login`}>Back to sign in</Link>}
         {mode === "login" && <Link to={`/org/${orgId}/register`}>Create an account</Link>}
         {mode === "login" && <Link to={`/org/${orgId}/reset-password`}>Forgot password?</Link>}
         <Link to={`/org/${orgId}`}>View portfolio</Link>
       </Space>
-      {user && !user.emailVerified && <EmailVerification user={user} />}
+      {user && !user.emailVerified && mode !== "invite" && <EmailVerification user={user} />}
     </Card>
   );
 }
