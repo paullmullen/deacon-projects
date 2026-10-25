@@ -36,8 +36,15 @@ exports.requestMembership=callable(async(req,orgId,db)=>{
     tx.set(ref,{uid:user.uid,email,displayName:user.displayName||email,status:'pending',invited,requestedAt:FieldValue.serverTimestamp()},{merge:true});
     return {status:'pending'};
   });
+  if(result.status==='pending'){
+    try{
+      const admins=await db.collection(`organizations/${orgId}/members`).where('role','==','admin').get();
+      const recipients=[...new Set(admins.docs.map(d=>d.get('email')).filter(Boolean))];
+      if(recipients.length)await sendEmail({to:recipients,subject:'DeaconProjects membership request',text:`${user.displayName||email} (${email}) has requested access to ${orgId}.\n\nReview: ${appUrl}/org/${encodeURIComponent(orgId)}/admin/users\n`});
+    }catch(error){console.error('Membership request notification failed',error);}
+  }
   return result;
-});
+},emailSecrets);
 exports.claimInvitation=callable(async(req,orgId,db)=>{
   const user=await getAuth().getUser(req.auth.uid);
   if(!user.emailVerified)fail('failed-precondition','Verify your email first.');
@@ -96,7 +103,7 @@ exports.approveMembership=callable(async(req,orgId,db)=>{
     await sendEmail({to:user.email,subject:'DeaconProjects access approved',text:`Your ${role} access to ${orgId} has been approved.\n\nOpen your portfolio: ${appUrl}/org/${encodeURIComponent(orgId)}\n`,replyTo:settings.replyToEmail||undefined});
   }catch(error){console.error('Membership approval email failed',error);}
   return {ok:true};
-});
+},emailSecrets);
 exports.rejectMembership=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
   const uid=req.data?.uid;
