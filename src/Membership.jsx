@@ -15,9 +15,7 @@ import {
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   createUserWithEmailAndPassword,
-  sendEmailVerification,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail,
   updateProfile,
   reload,
 } from "firebase/auth";
@@ -56,12 +54,12 @@ export function AuthPage({ user, mode = "login" }) {
           v.password,
         );
         await updateProfile(cred.user, { displayName: v.displayName.trim() });
-        await sendEmailVerification(cred.user);
+        await call("sendBrandedVerification", {orgId});
         setNotice(
           "Account created. Check your inbox for a verification email, then return to the portfolio. Invitations activate automatically; otherwise request access.",
         );
       } else if (mode === "reset") {
-        await sendPasswordResetEmail(auth, v.email.trim());
+        await call("sendBrandedPasswordReset", {orgId, email: v.email.trim()});
         setNotice(
           "If this address has an account, password reset instructions will arrive by email.",
         );
@@ -202,6 +200,7 @@ export function AuthPage({ user, mode = "login" }) {
   );
 }
 export function EmailVerification({ user }) {
+  const { orgId = "elmbrook" } = useParams();
   const [busy, setBusy] = useState(false);
   const check = async () => {
     setBusy(true);
@@ -228,8 +227,8 @@ export function EmailVerification({ user }) {
             size="small"
             onClick={async () => {
               try {
-                await sendEmailVerification(user);
-                message.success("Verification email sent");
+                const result = await call("sendBrandedVerification", {orgId});
+                message.success(result.data.status === "recently-sent" ? "A verification email was recently requested. Check your inbox." : "Verification email sent");
               } catch (e) {
                 message.error(e.message);
               }
