@@ -252,6 +252,10 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
       </section>
       <footer className="brief-footer">
         <span>Updated {updated}</span>
+        <span style={{ textAlign: "right", marginLeft: "auto" }}>
+          Paper copies of this brief may not be up-to-date. Check online at{" "}
+          <a href="http://deaconprojects.web.app/org/elmbrook">http://deaconprojects.web.app/org/elmbrook</a>
+        </span>
       </footer>
     </article>
   );
