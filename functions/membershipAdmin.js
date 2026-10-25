@@ -123,6 +123,14 @@ exports.listInvitations=callable(async(req,orgId,db)=>{
   const snap=await db.collection(`organizations/${orgId}/invitations`).get();
   return {invitations:snap.docs.map(d=>({email:d.get('email'),role:d.get('role')||'viewer',claimed:!!d.get('claimedBy'),revoked:d.get('revoked')===true}))};
 });
+exports.removeInvitation=callable(async(req,orgId,db)=>{
+  await adminOnly(req,orgId,db);
+  const email=normalizeEmail(req.data?.email);
+  if(!validEmail(email))fail('invalid-argument','Valid invitation email required.');
+  // Deleting the record immediately invalidates any outstanding token.
+  await db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`).delete();
+  return {ok:true};
+});
 exports.approveMembership=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
   const {uid,role}=req.data||{};
