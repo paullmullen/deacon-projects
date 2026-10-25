@@ -12,7 +12,7 @@ import {
   message,
   Divider,
 } from "antd";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -37,6 +37,10 @@ export function AuthPage({ user, mode = "login" }) {
   const { orgId = "elmbrook" } = useParams();
   const navigate = useNavigate();
   const [form] = Form.useForm();
+  const [searchParams] = useSearchParams();
+  const invitedEmail = mode === "invite" ? (searchParams.get("email") || "").trim() : "";
+  const registration = mode === "register" || mode === "invite";
+  const prefilledEmail = searchParams.get("email") || "";
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -45,7 +49,7 @@ export function AuthPage({ user, mode = "login" }) {
     setNotice("");
     setLoginError("");
     try {
-      if (mode === "register") {
+      if (registration) {
         const cred = await createUserWithEmailAndPassword(
           auth,
           v.email.trim(),
@@ -84,7 +88,7 @@ export function AuthPage({ user, mode = "login" }) {
         form.setFieldValue("password", "");
       } else {
         setLoginError(
-          mode === "register" && e.code === "auth/email-already-in-use"
+          registration && e.code === "auth/email-already-in-use"
             ? "An account already exists with this email. Please sign in instead."
             : mode === "register" && e.code === "auth/weak-password"
               ? "Choose a stronger password (at least 8 characters)."
@@ -133,11 +137,12 @@ export function AuthPage({ user, mode = "login" }) {
           </Form.Item>
         )}
         <Form.Item
+          initialValue={invitedEmail || prefilledEmail || undefined}
           label="Email"
           name="email"
           rules={[{ required: true, type: "email" }]}
         >
-          <Input autoComplete="email" />
+          <Input autoComplete="email" readOnly={mode === "invite"} />
         </Form.Item>
         {mode !== "reset" && (
           <Form.Item
@@ -152,6 +157,7 @@ export function AuthPage({ user, mode = "login" }) {
             />
           </Form.Item>
         )}
+        {mode === "invite" && <Form.Item label="Confirm password" name="confirmPassword" dependencies={["password"]} rules={[{required:true},({getFieldValue})=>({validator(_,value){return value===getFieldValue("password")?Promise.resolve():Promise.reject(new Error("Passwords do not match"));}})]}><Input.Password autoComplete="new-password" /></Form.Item>}
         <Button type="primary" htmlType="submit" loading={busy}>
           {mode === "register"
             ? "Create account"
@@ -179,7 +185,8 @@ export function AuthPage({ user, mode = "login" }) {
         />
       )}
       <Space wrap style={{ marginTop: 16 }}>
-        {mode !== "login" && <Link to={`/org/${orgId}/login`}>Back to sign in</Link>}
+        {mode === "invite" && <Link to={`/org/${orgId}/login?email=${encodeURIComponent(invitedEmail)}`}>Already have an account? Sign in</Link>}
+        {mode !== "login" && mode !== "invite" && <Link to={`/org/${orgId}/login`}>Back to sign in</Link>}
         {mode === "login" && <Link to={`/org/${orgId}/register`}>Create an account</Link>}
         {mode === "login" && <Link to={`/org/${orgId}/reset-password`}>Forgot password?</Link>}
         <Link to={`/org/${orgId}`}>View portfolio</Link>
