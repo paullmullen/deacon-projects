@@ -54,7 +54,7 @@ export function AuthPage({ user, mode = "login" }) {
         await updateProfile(cred.user, { displayName: v.displayName.trim() });
         await sendEmailVerification(cred.user);
         setNotice(
-          "Account created. Check your inbox for a verification email, then return to the portfolio to request access.",
+          "Account created. Check your inbox for a verification email, then return to the portfolio. Invitations activate automatically; otherwise request access.",
         );
       } else if (mode === "reset") {
         await sendPasswordResetEmail(auth, v.email.trim());
@@ -110,7 +110,7 @@ export function AuthPage({ user, mode = "login" }) {
     >
       <Typography.Paragraph type="secondary">
         {mode === "register"
-          ? "Create an account, verify your email, then request access to your organization's project portfolio. An administrator will review your request."
+          ? "Create an account, verify your email, then return to the portfolio. Invited users receive access automatically after verification; other users request approval."
           : mode === "reset"
             ? "Enter your account email and we’ll send password reset instructions."
             : "Sign in to view your organization’s projects and manage work assigned to you."}
@@ -194,6 +194,7 @@ export function EmailVerification({ user }) {
     setBusy(true);
     try {
       await reload(user);
+      if (user.emailVerified) await user.getIdToken(true);
       message.info(
         user.emailVerified
           ? "Email verified. Refresh the page to continue."
@@ -237,6 +238,17 @@ export function EmailVerification({ user }) {
 export function MembershipStatus({ orgId, user, role }) {
   const [state, setState] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  useEffect(() => {
+    if (!user || role || !user.emailVerified) return;
+    let live = true;
+    setClaiming(true);
+    call("claimInvitation", {orgId})
+      .then(r => { if (live && r.data.status === "member") window.location.reload(); })
+      .catch(e => console.error("Invitation claim failed", e))
+      .finally(() => { if (live) setClaiming(false); });
+    return () => { live = false; };
+  }, [orgId, user?.uid, user?.emailVerified, role]);
   useEffect(() => {
     if (!user || role) return;
     getDoc(doc(db, "organizations", orgId, "membershipRequests", user.uid))
@@ -245,6 +257,7 @@ export function MembershipStatus({ orgId, user, role }) {
   }, [orgId, user?.uid, role]);
   if (!user || role) return null;
   if (!user.emailVerified) return <EmailVerification user={user} />;
+  if (claiming) return <Alert type="info" message="Checking your invitation…" showIcon />;
   return (
     <Alert
       style={{ marginTop: 12 }}
@@ -298,13 +311,16 @@ export function AdminUsers({ user }) {
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({});
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
+  const [invitations, setInvitations] = useState([]);
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
-    const [a, b, c, organization] = await Promise.all([
+    const [a, b, c, organization, invites] = await Promise.all([
       getDocs(collection(db, "organizations", orgId, "membershipRequests")),
       getDocs(collection(db, "organizations", orgId, "members")),
       getDoc(doc(db, "organizations", orgId, "settings", "email")),
       getDoc(doc(db, "organizations", orgId)),
+      call("listInvitations", {orgId}),
     ]);
     setOrgName(organization.exists() ? organization.data().name || "" : "");
     setRequests(
@@ -314,6 +330,7 @@ export function AdminUsers({ user }) {
     );
     setMembers(b.docs.map((x) => ({ uid: x.id, ...x.data() })));
     setSettings(c.exists() ? c.data() : {});
+    setInvitations(invites.data.invitations || []);
   };
   useEffect(() => {
     let live = true;
@@ -399,24 +416,37 @@ export function AdminUsers({ user }) {
         />
       </Card>
       <Card title="Invite a user">
-        <Space.Compact style={{ maxWidth: 550, width: "100%" }}>
+        <Space.Compact style={{ maxWidth: 700, width: "100%" }}>
           <Input
             type="email"
             placeholder="Email address"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
           />
+          <Select aria-label="Invitation role" value={inviteRole} onChange={setInviteRole}
+            style={{width:130}} options={roles.map(value=>({value,label:value}))} />
           <Button
             type="primary"
             disabled={busy || !inviteEmail}
             onClick={async () => {
-              await act("inviteMember", { email: inviteEmail });
+              await act("inviteMember", { email: inviteEmail, role: inviteRole });
               setInviteEmail("");
             }}
           >
             Send invitation
           </Button>
         </Space.Compact>
+      </Card>
+      <Card title="Invitations">
+        <Table rowKey="email" size="small" dataSource={invitations}
+          pagination={{pageSize:10}}
+          columns={[
+            {title:"Email",dataIndex:"email"},
+            {title:"Assigned role",dataIndex:"role"},
+            {title:"Status",render:(_,r)=>r.revoked?"Revoked":r.claimed?"Accepted":"Awaiting registration"},
+            {title:"Action",render:(_,r)=>r.claimed||r.revoked?null:
+              <Button size="small" disabled={busy} onClick={()=>act("inviteMember",{email:r.email,role:r.role})}>Resend</Button>}
+          ]}/>
       </Card>
       <Card title="Current members">
         <Table
