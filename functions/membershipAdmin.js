@@ -1,3 +1,4 @@
+const {randomBytes,createHash,timingSafeEqual}=require('node:crypto');
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
 const {getFirestore,FieldValue}=require('firebase-admin/firestore');
 const {getAuth}=require('firebase-admin/auth');
@@ -7,6 +8,9 @@ const {sendEmail,emailSecrets}=require('./emailTransport');
 const REGION='us-central1';
 const fail=(code,msg)=>{throw new HttpsError(code,msg);};
 const appUrl=(process.env.PROJECT_APP_URL||'https://deaconprojects.web.app').replace(/\/$/,'');
+const invitationHash=token=>createHash('sha256').update(token).digest('hex');
+const INVITE_LIFETIME_MS=7*24*60*60*1000;
+const validToken=token=>typeof token==='string'&&/^[a-f0-9]{64}$/.test(token);
 const callable=(handler,secrets=[])=>onCall({region:REGION,secrets,invoker:'public'},async request=>{
   if(!request.auth)fail('unauthenticated','Sign in first.');
   const orgId=request.data?.orgId;
@@ -71,15 +75,49 @@ exports.inviteMember=callable(async(req,orgId,db)=>{
   const ref=db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`);
   const existing=await ref.get();
   if(existing.exists&&existing.get('claimedBy'))fail('failed-precondition','Invitation already accepted. Manage this user in Current members.');
-  await ref.set({email,role,invitedBy:req.auth.uid,createdAt:FieldValue.serverTimestamp(),revoked:false},{merge:true});
-  const link=`${appUrl}/org/${encodeURIComponent(orgId)}/invite?email=${encodeURIComponent(email)}`;
+  const token=randomBytes(32).toString('hex');
+  await ref.set({email,role,invitedBy:req.auth.uid,createdAt:FieldValue.serverTimestamp(),tokenHash:invitationHash(token),expiresAtMs:Date.now()+INVITE_LIFETIME_MS,claimedBy:null,claimedAt:null});
+  const link=`${appUrl}/org/${encodeURIComponent(orgId)}/invite?token=${token}`;
   try{
-    await sendEmail({to:email,subject:'Invitation to DeaconProjects',text:`You have been invited to join ${orgId} on DeaconProjects.\n\nSign in or create an account with this email, then verify your email. Your ${role} access will be activated automatically.\n\n${link}\n`});
+    await sendEmail({to:email,subject:'Invitation to DeaconProjects',text:`You have been invited to join ${orgId} on DeaconProjects.\n\nOpen this private invitation link to create or sign into your account. The link expires in 7 days and can only be accepted once. No additional email verification is required.\n\n${link}\n`});
   }catch(error){
     throw new HttpsError('internal','Invitation recorded, but email delivery failed. Check SMTP configuration and retry.');
   }
   return {ok:true};
 },emailSecrets);
+// Public preview only reveals the invitation email to someone holding the high-entropy token.
+exports.previewInvitation=onCall({region:REGION,invoker:'public'},async req=>{
+  const orgId=req.data?.orgId,token=req.data?.token;
+  if(!validOrg(orgId)||!validToken(token))fail('invalid-argument','Invalid invitation link.');
+  const hash=invitationHash(token);
+  const snap=await getFirestore().collection(`organizations/${orgId}/invitations`).where('tokenHash','==',hash).limit(1).get();
+  if(snap.empty)fail('not-found','Invitation not found or expired.');
+  const invitation=snap.docs[0];
+  if(invitation.get('claimedBy')||invitation.get('expiresAtMs')<=Date.now())fail('failed-precondition','Invitation already accepted or expired.');
+  return {email:invitation.get('email')};
+});
+exports.acceptInvitation=callable(async(req,orgId,db)=>{
+  const token=req.data?.token;
+  if(!validToken(token))fail('invalid-argument','Invalid invitation token.');
+  const user=await getAuth().getUser(req.auth.uid);
+  const email=normalizeEmail(user.email);
+  if(!validEmail(email))fail('failed-precondition','Account email required.');
+  const ref=db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`);
+  const member=memberRef(db,orgId,user.uid);
+  const result=await db.runTransaction(async tx=>{
+    const [inviteSnap,memberSnap]=await Promise.all([tx.get(ref),tx.get(member)]);
+    if(!inviteSnap.exists||inviteSnap.get('email')!==email||inviteSnap.get('tokenHash')!==invitationHash(token)||inviteSnap.get('expiresAtMs')<=Date.now())fail('permission-denied','Invitation invalid or expired.');
+    const claimedBy=inviteSnap.get('claimedBy');
+    if(claimedBy&&claimedBy!==user.uid)fail('permission-denied','Invitation already accepted.');
+    if(memberSnap.exists&&memberSnap.get('status')==='inactive')fail('permission-denied','An administrator must reactivate this account.');
+    if(!memberSnap.exists)tx.create(member,{...profile(user),role:inviteSnap.get('role'),status:'active',joinedAt:FieldValue.serverTimestamp(),invitedBy:inviteSnap.get('invitedBy')||null});
+    if(!claimedBy)tx.update(ref,{claimedBy:user.uid,claimedAt:FieldValue.serverTimestamp(),tokenHash:invitationHash(token)});
+    return {status:'member',role:memberSnap.exists?memberSnap.get('role'):inviteSnap.get('role')};
+  });
+  // The token is mailbox proof. Complete Firebase email verification server-side.
+  if(!user.emailVerified)await getAuth().updateUser(user.uid,{emailVerified:true});
+  return result;
+});
 exports.listInvitations=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
   const snap=await db.collection(`organizations/${orgId}/invitations`).get();
