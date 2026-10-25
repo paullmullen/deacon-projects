@@ -11,6 +11,7 @@ import {
   Typography,
   message,
   Divider,
+  Popconfirm,
 } from "antd";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -347,7 +348,7 @@ export function AdminUsers({ user }) {
     getDoc(doc(db, "organizations", orgId, "members", user?.uid || "_"))
       .then(async (s) => {
         if (!live) return;
-        const r = s.exists() ? s.data().role : null;
+        const r = s.exists() && s.data().status !== "inactive" ? s.data().role : null;
         setRole(r);
         if (r === "admin") await refresh();
       })
@@ -465,18 +466,35 @@ export function AdminUsers({ user }) {
           columns={[
             { title: "Name", dataIndex: "displayName" },
             { title: "Email", dataIndex: "email" },
+            { title: "Status", render: (_, r) => r.status === "inactive" ? "Inactive" : "Active" },
             {
               title: "Role",
               render: (_, r) => (
                 <Select
                   style={{ width: 130 }}
                   value={r.role}
-                  disabled={busy || r.uid === user.uid}
+                  disabled={busy || r.uid === user.uid || r.status === "inactive"}
                   options={roles.map((value) => ({ value, label: value }))}
                   onChange={(role) =>
                     act("changeMemberRole", { uid: r.uid, role })
                   }
                 />
+              ),
+            },
+            {
+              title: "Access",
+              render: (_, r) => (
+                <Popconfirm
+                  title={r.status === "inactive" ? "Reactivate this member?" : "Mark this member inactive?"}
+                  description={r.status === "inactive" ? "Restore their organizational access." : "Their account and project history will be preserved."}
+                  onConfirm={() => act("setMemberActive", { uid: r.uid, active: r.status === "inactive" })}
+                  okText="Confirm"
+                  cancelText="Cancel"
+                >
+                  <Button size="small" disabled={busy || r.uid === user.uid}>
+                    {r.status === "inactive" ? "Reactivate" : "Make inactive"}
+                  </Button>
+                </Popconfirm>
               ),
             },
           ]}
