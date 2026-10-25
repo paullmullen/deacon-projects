@@ -99,7 +99,7 @@ function useOrg(orgId, user) {
           setState({
             loading: false,
             org: o.exists() ? o.data() : null,
-            role: m?.exists() ? m.data().role : null,
+            role: m?.exists() && m.data().status !== "inactive" ? m.data().role : null,
           });
       })
       .catch((error) => {
