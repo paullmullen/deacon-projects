@@ -38,20 +38,46 @@ exports.requestMembership=callable(async(req,orgId,db)=>{
   });
   return result;
 });
+exports.claimInvitation=callable(async(req,orgId,db)=>{
+  const user=await getAuth().getUser(req.auth.uid);
+  if(!user.emailVerified)fail('failed-precondition','Verify your email first.');
+  const email=normalizeEmail(user.email);
+  if(!validEmail(email))fail('failed-precondition','Valid email required.');
+  const ref=db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`);
+  return db.runTransaction(async tx=>{
+    const [invitation,member]=await Promise.all([tx.get(ref),tx.get(memberRef(db,orgId,user.uid))]);
+    if(member.exists)return {status:'member',role:member.get('role')};
+    if(!invitation.exists||invitation.get('email')!==email||!ROLES.includes(invitation.get('role'))||invitation.get('revoked')===true)return {status:'none'};
+    const claimedBy=invitation.get('claimedBy');
+    if(claimedBy&&claimedBy!==user.uid)fail('permission-denied','Invitation already claimed.');
+    const role=invitation.get('role');
+    tx.create(memberRef(db,orgId,user.uid),{...profile(user),role,joinedAt:FieldValue.serverTimestamp(),invitedBy:invitation.get('invitedBy')||null});
+    tx.update(ref,{claimedBy:user.uid,claimedAt:FieldValue.serverTimestamp()});
+    return {status:'member',role};
+  });
+});
 exports.inviteMember=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
   const email=normalizeEmail(req.data?.email);
-  if(!validEmail(email))fail('invalid-argument','Valid email required.');
+  const role=req.data?.role;
+  if(!validEmail(email)||!ROLES.includes(role))fail('invalid-argument','Valid email and role required.');
   const ref=db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`);
-  await ref.set({email,invitedBy:req.auth.uid,createdAt:FieldValue.serverTimestamp()},{merge:true});
-  const link=`${appUrl}/org/${encodeURIComponent(orgId)}/register`;
+  const existing=await ref.get();
+  if(existing.exists&&existing.get('claimedBy'))fail('failed-precondition','Invitation already accepted. Manage this user in Current members.');
+  await ref.set({email,role,invitedBy:req.auth.uid,createdAt:FieldValue.serverTimestamp(),revoked:false},{merge:true});
+  const link=`${appUrl}/org/${encodeURIComponent(orgId)}/login`;
   try{
-    await sendEmail({to:email,subject:'Invitation to DeaconProjects',text:`You have been invited to join ${orgId} on DeaconProjects.\n\nCreate an account or sign in, verify your email, then request membership. An administrator will approve your request.\n\n${link}\n`});
+    await sendEmail({to:email,subject:'Invitation to DeaconProjects',text:`You have been invited to join ${orgId} on DeaconProjects.\n\nSign in or create an account with this email, then verify your email. Your ${role} access will be activated automatically.\n\n${link}\n`});
   }catch(error){
     throw new HttpsError('internal','Invitation recorded, but email delivery failed. Check SMTP configuration and retry.');
   }
   return {ok:true};
 },emailSecrets);
+exports.listInvitations=callable(async(req,orgId,db)=>{
+  await adminOnly(req,orgId,db);
+  const snap=await db.collection(`organizations/${orgId}/invitations`).get();
+  return {invitations:snap.docs.map(d=>({email:d.get('email'),role:d.get('role')||'viewer',claimed:!!d.get('claimedBy'),revoked:d.get('revoked')===true}))};
+});
 exports.approveMembership=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
   const {uid,role}=req.data||{};
@@ -64,6 +90,11 @@ exports.approveMembership=callable(async(req,orgId,db)=>{
     tx.set(memberRef(db,orgId,uid),{...profile(user),role,joinedAt:FieldValue.serverTimestamp()},{merge:true});
     tx.update(requestRef(db,orgId,uid),{status:'approved',reviewedBy:req.auth.uid,reviewedAt:FieldValue.serverTimestamp()});
   });
+  try {
+    const settingsSnap=await db.doc(`organizations/${orgId}/settings/email`).get();
+    const settings=settingsSnap.exists?settingsSnap.data():{};
+    await sendEmail({to:user.email,subject:'DeaconProjects access approved',text:`Your ${role} access to ${orgId} has been approved.\n\nOpen your portfolio: ${appUrl}/org/${encodeURIComponent(orgId)}\n`,replyTo:settings.replyToEmail||undefined});
+  }catch(error){console.error('Membership approval email failed',error);}
   return {ok:true};
 });
 exports.rejectMembership=callable(async(req,orgId,db)=>{
