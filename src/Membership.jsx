@@ -11,13 +11,12 @@ import {
   Typography,
   message,
   Divider,
+  Popconfirm,
 } from "antd";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   createUserWithEmailAndPassword,
-  sendEmailVerification,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail,
   updateProfile,
   reload,
 } from "firebase/auth";
@@ -37,6 +36,19 @@ export function AuthPage({ user, mode = "login" }) {
   const { orgId = "elmbrook" } = useParams();
   const navigate = useNavigate();
   const [form] = Form.useForm();
+  const [searchParams] = useSearchParams();
+  const invitationToken = mode === "invite" ? (searchParams.get("token") || "") : "";
+  const [invitedEmail, setInvitedEmail] = useState("");
+  const [invitationError, setInvitationError] = useState("");
+  useEffect(() => {
+    if (mode !== "invite") return;
+    if (!invitationToken) { setInvitationError("Missing secure invitation token. Ask your administrator to resend the invitation."); return; }
+    call("previewInvitation", {orgId, token:invitationToken})
+      .then(r => {setInvitedEmail(r.data.email);form.setFieldValue("email",r.data.email);})
+      .catch(() => setInvitationError("Invitation invalid, expired, or already accepted. Ask your administrator to resend it."));
+  }, [mode,orgId,invitationToken,form]);
+  const registration = mode === "register" || mode === "invite";
+  const prefilledEmail = searchParams.get("email") || "";
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -45,24 +57,35 @@ export function AuthPage({ user, mode = "login" }) {
     setNotice("");
     setLoginError("");
     try {
-      if (mode === "register") {
+      if (registration) {
         const cred = await createUserWithEmailAndPassword(
           auth,
           v.email.trim(),
           v.password,
         );
         await updateProfile(cred.user, { displayName: v.displayName.trim() });
-        await sendEmailVerification(cred.user);
-        setNotice(
-          "Account created. Check your inbox for a verification email, then return to the portfolio to request access.",
-        );
+        if (mode === "invite") {
+          await call("acceptInvitation", {orgId, token:invitationToken});
+          await reload(cred.user);
+          await cred.user.getIdToken(true);
+          navigate(`/org/${encodeURIComponent(orgId)}`, {replace:true});
+        } else {
+          await call("sendBrandedVerification", {orgId});
+          setNotice("Account created. Check your inbox for a verification email, then return to the portfolio.");
+        }
       } else if (mode === "reset") {
-        await sendPasswordResetEmail(auth, v.email.trim());
+        await call("sendBrandedPasswordReset", {orgId, email: v.email.trim()});
         setNotice(
           "If this address has an account, password reset instructions will arrive by email.",
         );
       } else {
         await signInWithEmailAndPassword(auth, v.email.trim(), v.password);
+        const token=searchParams.get("token");
+        if (token) {
+          await call("acceptInvitation", {orgId,token});
+          await reload(auth.currentUser);
+          await auth.currentUser.getIdToken(true);
+        }
 
         navigate(`/org/${encodeURIComponent(orgId)}`, {
           replace: true,
@@ -84,9 +107,9 @@ export function AuthPage({ user, mode = "login" }) {
         form.setFieldValue("password", "");
       } else {
         setLoginError(
-          mode === "register" && e.code === "auth/email-already-in-use"
+          registration && e.code === "auth/email-already-in-use"
             ? "An account already exists with this email. Please sign in instead."
-            : mode === "register" && e.code === "auth/weak-password"
+            : registration && e.code === "auth/weak-password"
               ? "Choose a stronger password (at least 8 characters)."
               : mode === "reset"
                 ? "Unable to send a reset email right now. Please try again."
@@ -100,7 +123,9 @@ export function AuthPage({ user, mode = "login" }) {
   return (
     <Card
       title={
-        mode === "register"
+        mode === "invite"
+          ? "Welcome to DeaconProjects"
+          : mode === "register"
           ? "Create your Deacon Projects account"
           : mode === "reset"
             ? "Reset password"
@@ -109,8 +134,10 @@ export function AuthPage({ user, mode = "login" }) {
       style={{ maxWidth: 520, margin: "auto" }}
     >
       <Typography.Paragraph type="secondary">
-        {mode === "register"
-          ? "Create an account, verify your email, then request access to your organization's project portfolio. An administrator will review your request."
+        {mode === "invite"
+          ? "You have been invited to DeaconProjects. Create your account and choose a password. Your invitation confirms your email address; no second verification email is needed. Already have an account? Sign in below."
+          : mode === "register"
+          ? "Create an account, verify your email, then return to the portfolio. Invited users receive access automatically after verification; other users request approval."
           : mode === "reset"
             ? "Enter your account email and we’ll send password reset instructions."
             : "Sign in to view your organization’s projects and manage work assigned to you."}
@@ -123,7 +150,7 @@ export function AuthPage({ user, mode = "login" }) {
           console.error("Sign-in form validation failed:", errorFields);
         }}
       >
-        {mode === "register" && (
+        {registration && (
           <Form.Item
             label="Full name"
             name="displayName"
@@ -133,11 +160,12 @@ export function AuthPage({ user, mode = "login" }) {
           </Form.Item>
         )}
         <Form.Item
+          initialValue={mode === "invite" ? undefined : prefilledEmail || undefined}
           label="Email"
           name="email"
           rules={[{ required: true, type: "email" }]}
         >
-          <Input autoComplete="email" />
+          <Input autoComplete="email" readOnly={mode === "invite"} />
         </Form.Item>
         {mode !== "reset" && (
           <Form.Item
@@ -147,13 +175,16 @@ export function AuthPage({ user, mode = "login" }) {
           >
             <Input.Password
               autoComplete={
-                mode === "register" ? "new-password" : "current-password"
+                registration ? "new-password" : "current-password"
               }
             />
           </Form.Item>
         )}
-        <Button type="primary" htmlType="submit" loading={busy}>
-          {mode === "register"
+        {mode === "invite" && <Form.Item label="Confirm password" name="confirmPassword" dependencies={["password"]} rules={[{required:true},({getFieldValue})=>({validator(_,value){return value===getFieldValue("password")?Promise.resolve():Promise.reject(new Error("Passwords do not match"));}})]}><Input.Password autoComplete="new-password" /></Form.Item>}
+        <Button type="primary" htmlType="submit" loading={busy} disabled={mode === "invite" && (!invitedEmail || !!invitationError)}>
+          {mode === "invite"
+            ? "Create account and set password"
+            : mode === "register"
             ? "Create account"
             : mode === "reset"
               ? "Send reset email"
@@ -161,6 +192,7 @@ export function AuthPage({ user, mode = "login" }) {
         </Button>
       </Form>
 
+      {invitationError && <Alert type="error" showIcon message={invitationError} style={{marginTop:12}} />}
       {loginError && (
         <Alert
           type="error"
@@ -179,26 +211,26 @@ export function AuthPage({ user, mode = "login" }) {
         />
       )}
       <Space wrap style={{ marginTop: 16 }}>
-        {mode !== "login" && <Link to={`/org/${orgId}/login`}>Back to sign in</Link>}
+        {mode === "invite" && <Link to={`/org/${orgId}/login?email=${encodeURIComponent(invitedEmail)}&token=${encodeURIComponent(invitationToken)}`}>Already have an account? Sign in</Link>}
+        {mode !== "login" && mode !== "invite" && <Link to={`/org/${orgId}/login`}>Back to sign in</Link>}
         {mode === "login" && <Link to={`/org/${orgId}/register`}>Create an account</Link>}
         {mode === "login" && <Link to={`/org/${orgId}/reset-password`}>Forgot password?</Link>}
         <Link to={`/org/${orgId}`}>View portfolio</Link>
       </Space>
-      {user && !user.emailVerified && <EmailVerification user={user} />}
+      {user && !user.emailVerified && mode !== "invite" && <EmailVerification user={user} />}
     </Card>
   );
 }
 export function EmailVerification({ user }) {
+  const { orgId = "elmbrook" } = useParams();
   const [busy, setBusy] = useState(false);
   const check = async () => {
     setBusy(true);
     try {
       await reload(user);
-      message.info(
-        user.emailVerified
-          ? "Email verified. Refresh the page to continue."
-          : "Not verified yet. Check your inbox.",
-      );
+      if (user.emailVerified) await user.getIdToken(true);
+      if (user.emailVerified) { window.location.reload(); return; }
+      message.info("Not verified yet. Check your inbox.");
     } catch (e) {
       message.error(e.message);
     } finally {
@@ -217,8 +249,8 @@ export function EmailVerification({ user }) {
             size="small"
             onClick={async () => {
               try {
-                await sendEmailVerification(user);
-                message.success("Verification email sent");
+                const result = await call("sendBrandedVerification", {orgId});
+                message.success(result.data.status === "recently-sent" ? "A verification email was recently requested. Check your inbox." : "Verification email sent");
               } catch (e) {
                 message.error(e.message);
               }
@@ -237,6 +269,17 @@ export function EmailVerification({ user }) {
 export function MembershipStatus({ orgId, user, role }) {
   const [state, setState] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  useEffect(() => {
+    if (!user || role || !user.emailVerified) return;
+    let live = true;
+    setClaiming(true);
+    call("claimInvitation", {orgId})
+      .then(r => { if (live && r.data.status === "member") window.location.reload(); })
+      .catch(e => console.error("Invitation claim failed", e))
+      .finally(() => { if (live) setClaiming(false); });
+    return () => { live = false; };
+  }, [orgId, user?.uid, user?.emailVerified, role]);
   useEffect(() => {
     if (!user || role) return;
     getDoc(doc(db, "organizations", orgId, "membershipRequests", user.uid))
@@ -245,6 +288,7 @@ export function MembershipStatus({ orgId, user, role }) {
   }, [orgId, user?.uid, role]);
   if (!user || role) return null;
   if (!user.emailVerified) return <EmailVerification user={user} />;
+  if (claiming) return <Alert type="info" message="Checking your invitation…" showIcon />;
   return (
     <Alert
       style={{ marginTop: 12 }}
@@ -298,13 +342,16 @@ export function AdminUsers({ user }) {
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({});
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
+  const [invitations, setInvitations] = useState([]);
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
-    const [a, b, c, organization] = await Promise.all([
+    const [a, b, c, organization, invites] = await Promise.all([
       getDocs(collection(db, "organizations", orgId, "membershipRequests")),
       getDocs(collection(db, "organizations", orgId, "members")),
       getDoc(doc(db, "organizations", orgId, "settings", "email")),
       getDoc(doc(db, "organizations", orgId)),
+      call("listInvitations", {orgId}),
     ]);
     setOrgName(organization.exists() ? organization.data().name || "" : "");
     setRequests(
@@ -314,6 +361,7 @@ export function AdminUsers({ user }) {
     );
     setMembers(b.docs.map((x) => ({ uid: x.id, ...x.data() })));
     setSettings(c.exists() ? c.data() : {});
+    setInvitations(invites.data.invitations || []);
   };
   useEffect(() => {
     let live = true;
@@ -321,7 +369,7 @@ export function AdminUsers({ user }) {
     getDoc(doc(db, "organizations", orgId, "members", user?.uid || "_"))
       .then(async (s) => {
         if (!live) return;
-        const r = s.exists() ? s.data().role : null;
+        const r = s.exists() && s.data().status !== "inactive" ? s.data().role : null;
         setRole(r);
         if (r === "admin") await refresh();
       })
@@ -399,24 +447,49 @@ export function AdminUsers({ user }) {
         />
       </Card>
       <Card title="Invite a user">
-        <Space.Compact style={{ maxWidth: 550, width: "100%" }}>
+        <Space.Compact style={{ maxWidth: 700, width: "100%" }}>
           <Input
             type="email"
             placeholder="Email address"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
           />
+          <Select aria-label="Invitation role" value={inviteRole} onChange={setInviteRole}
+            style={{width:130}} options={roles.map(value=>({value,label:value}))} />
           <Button
             type="primary"
             disabled={busy || !inviteEmail}
             onClick={async () => {
-              await act("inviteMember", { email: inviteEmail });
+              await act("inviteMember", { email: inviteEmail, role: inviteRole });
               setInviteEmail("");
             }}
           >
             Send invitation
           </Button>
         </Space.Compact>
+      </Card>
+      <Card title="Invitations">
+        <Table rowKey="email" size="small" dataSource={invitations}
+          pagination={{pageSize:10}}
+          columns={[
+            {title:"Email",dataIndex:"email"},
+            {title:"Assigned role",dataIndex:"role"},
+            {title:"Status",render:(_,r)=>r.revoked?"Revoked":r.claimed?"Accepted":"Awaiting registration"},
+            {title:"Actions",render:(_,r)=>
+              <Space wrap>
+                {!r.claimed && !r.revoked && <Button size="small" disabled={busy} onClick={()=>act("inviteMember",{email:r.email,role:r.role})}>Resend</Button>}
+                <Popconfirm
+                  title="Remove this invitation?"
+                  description={r.claimed ? "The member's access will not be affected." : "The invitation link will no longer work."}
+                  okText="Remove"
+                  okButtonProps={{danger:true}}
+                  cancelText="Cancel"
+                  onConfirm={()=>act("removeInvitation",{email:r.email})}
+                >
+                  <Button size="small" danger disabled={busy}>Remove</Button>
+                </Popconfirm>
+              </Space>}
+          ]}/>
       </Card>
       <Card title="Current members">
         <Table
@@ -426,18 +499,35 @@ export function AdminUsers({ user }) {
           columns={[
             { title: "Name", dataIndex: "displayName" },
             { title: "Email", dataIndex: "email" },
+            { title: "Status", render: (_, r) => r.status === "inactive" ? "Inactive" : "Active" },
             {
               title: "Role",
               render: (_, r) => (
                 <Select
                   style={{ width: 130 }}
                   value={r.role}
-                  disabled={busy || r.uid === user.uid}
+                  disabled={busy || r.uid === user.uid || r.status === "inactive"}
                   options={roles.map((value) => ({ value, label: value }))}
                   onChange={(role) =>
                     act("changeMemberRole", { uid: r.uid, role })
                   }
                 />
+              ),
+            },
+            {
+              title: "Access",
+              render: (_, r) => (
+                <Popconfirm
+                  title={r.status === "inactive" ? "Reactivate this member?" : "Mark this member inactive?"}
+                  description={r.status === "inactive" ? "Restore their organizational access." : "Their account and project history will be preserved."}
+                  onConfirm={() => act("setMemberActive", { uid: r.uid, active: r.status === "inactive" })}
+                  okText="Confirm"
+                  cancelText="Cancel"
+                >
+                  <Button size="small" disabled={busy || r.uid === user.uid}>
+                    {r.status === "inactive" ? "Reactivate" : "Make inactive"}
+                  </Button>
+                </Popconfirm>
               ),
             },
           ]}

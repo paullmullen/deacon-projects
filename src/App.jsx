@@ -99,7 +99,7 @@ function useOrg(orgId, user) {
           setState({
             loading: false,
             org: o.exists() ? o.data() : null,
-            role: m?.exists() ? m.data().role : null,
+            role: m?.exists() && m.data().status !== "inactive" ? m.data().role : null,
           });
       })
       .catch((error) => {
@@ -587,19 +587,19 @@ const briefSections = [
     fields: [
       ["leadDeacon", "Project lead / Lead Deacon", "short"],
       ["projectSponsor", "Project sponsor(s)", "long", 500],
-      ["statusNote", "Status note (e.g. On schedule)", "short", 100],
-      ["teamMembers", "Project team members (one per line)", "long", 1000],
       [
         "stakeholders",
         "Key stakeholders (name — role, one per line)",
         "long",
         1000,
       ],
+      ["teamMembers", "Project team members (one per line)", "long", 1000],
     ],
   },
   {
     title: "Schedule and outcomes",
     fields: [
+      ["statusNote", "Status note (e.g. On schedule)", "short", 100],
       ["kickoffDate", "Commissioned / kickoff date (YYYY-MM-DD)", "date"],
       ["targetDate", "Expected completion date (YYYY-MM-DD)", "date"],
       ["actualDate", "Actual completion date (YYYY-MM-DD)", "date"],
@@ -614,7 +614,7 @@ const briefSections = [
   {
     title: "Progress and decisions",
     fields: [
-      ["accomplishments", "Accomplishments / progress", "long"],
+      ["accomplishments", "Accomplishments / progress", "long", 1000],
       ["decisionsNeeded", "Decisions or help needed", "long", 1000],
     ],
   },
@@ -1167,8 +1167,14 @@ function Project({ user }) {
                     extra={
                       key === "expectedOutcome"
                         ? "Be specific about what the team is expected to deliver. This is different from why the project matters."
+                         : key === "projectSponsor"
+                        ? "This is the person in authority who really wants this to happen and can help clear roadblocks if needed."
                         : key === "stakeholders"
-                        ? "Who will be affected by the outcome of this project?"
+                        ? "These are the people likely to be affected by the project and should be engaged in the solution."
+                        : key === "teamMembers"
+                        ? "Everyone else working on the project."
+                        : key === "accomplishments"
+                        ? "Use brief bullet points rather than prose to summarize accomplishments and progress. Start each line with -."
                         : kind === "long" && ["longDescription", "purpose", "scope", "accomplishments", "barriers", "decisionsNeeded"].includes(key)
                           ? "Formatting: **bold**, *italic*, - bullets, 1. numbered steps, ### headings, [link](https://example.com)."
                           : undefined
@@ -1302,6 +1308,7 @@ export default function App() {
           path="/org/:orgId/login"
           element={<AuthPage user={user} mode="login" />}
         />
+        <Route path="/org/:orgId/invite" element={<AuthPage user={user} mode="invite" />} />
         <Route
           path="/org/:orgId/register"
           element={<AuthPage user={user} mode="register" />}
