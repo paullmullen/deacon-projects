@@ -588,13 +588,13 @@ const briefSections = [
       ["leadDeacon", "Project lead / Lead Deacon", "short"],
       ["projectSponsor", "Project sponsor(s)", "long", 500],
       ["statusNote", "Status note (e.g. On schedule)", "short", 100],
-      ["teamMembers", "Project team members (one per line)", "long", 1000],
       [
         "stakeholders",
         "Key stakeholders (name — role, one per line)",
         "long",
         1000,
       ],
+      ["teamMembers", "Project team members (one per line)", "long", 1000],
     ],
   },
   {
