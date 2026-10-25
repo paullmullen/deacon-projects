@@ -90,7 +90,7 @@ export function AuthPage({ user, mode = "login" }) {
         setLoginError(
           registration && e.code === "auth/email-already-in-use"
             ? "An account already exists with this email. Please sign in instead."
-            : mode === "register" && e.code === "auth/weak-password"
+            : registration && e.code === "auth/weak-password"
               ? "Choose a stronger password (at least 8 characters)."
               : mode === "reset"
                 ? "Unable to send a reset email right now. Please try again."
@@ -104,7 +104,9 @@ export function AuthPage({ user, mode = "login" }) {
   return (
     <Card
       title={
-        mode === "register"
+        mode === "invite"
+          ? "Welcome to DeaconProjects"
+          : mode === "register"
           ? "Create your Deacon Projects account"
           : mode === "reset"
             ? "Reset password"
@@ -113,7 +115,9 @@ export function AuthPage({ user, mode = "login" }) {
       style={{ maxWidth: 520, margin: "auto" }}
     >
       <Typography.Paragraph type="secondary">
-        {mode === "register"
+        {mode === "invite"
+          ? "You have been invited to DeaconProjects. Create your account and choose a password. After verifying your email, your assigned access activates automatically. Already have an account? Sign in below."
+          : mode === "register"
           ? "Create an account, verify your email, then return to the portfolio. Invited users receive access automatically after verification; other users request approval."
           : mode === "reset"
             ? "Enter your account email and we’ll send password reset instructions."
@@ -127,7 +131,7 @@ export function AuthPage({ user, mode = "login" }) {
           console.error("Sign-in form validation failed:", errorFields);
         }}
       >
-        {mode === "register" && (
+        {registration && (
           <Form.Item
             label="Full name"
             name="displayName"
@@ -152,14 +156,16 @@ export function AuthPage({ user, mode = "login" }) {
           >
             <Input.Password
               autoComplete={
-                mode === "register" ? "new-password" : "current-password"
+                registration ? "new-password" : "current-password"
               }
             />
           </Form.Item>
         )}
         {mode === "invite" && <Form.Item label="Confirm password" name="confirmPassword" dependencies={["password"]} rules={[{required:true},({getFieldValue})=>({validator(_,value){return value===getFieldValue("password")?Promise.resolve():Promise.reject(new Error("Passwords do not match"));}})]}><Input.Password autoComplete="new-password" /></Form.Item>}
         <Button type="primary" htmlType="submit" loading={busy}>
-          {mode === "register"
+          {mode === "invite"
+            ? "Create account and set password"
+            : mode === "register"
             ? "Create account"
             : mode === "reset"
               ? "Send reset email"
