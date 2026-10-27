@@ -1,5 +1,6 @@
 import ProjectBrief from "./ProjectBrief";
-import { projectStatuses, projectPriority, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl } from "./projectPresentation";
+import ProjectOrderHandle from "./ProjectOrderHandle";
+import { projectStatuses, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl, reorderProjects } from "./projectPresentation";
 import { createPortal } from "react-dom";
 import "./ReviewPackage.css";
 import { useEffect, useState } from "react";
@@ -10,7 +11,6 @@ import {
   Checkbox,
   Form,
   Input,
-  InputNumber,
   Layout,
   List,
   Row,
@@ -48,6 +48,7 @@ import {
   serverTimestamp,
   updateDoc,
   writeBatch,
+  runTransaction,
   deleteDoc,
   orderBy,
 } from "firebase/firestore";
@@ -190,6 +191,9 @@ function Dashboard({ user }) {
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [sort, setSort] = useState("priority");
+  const [ordering, setOrdering] = useState(false);
+  const [orderTarget, setOrderTarget] = useState(null);
+  const [orderNotice, setOrderNotice] = useState("");
   const [showClosed, setShowClosed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewStatuses, setReviewStatuses] = useState([]);
@@ -264,16 +268,52 @@ function Dashboard({ user }) {
   const visible = current.filter(matches).sort((a, b) => compareProjects(a, b, sort));
   const count = (status) => current.filter((p) => p.status === status).length;
 
+  const canReorder = canEdit && sort === "priority" && !needle && !ordering && !fetching && !error;
+  const moveProject = async (sourceId, targetId, direction) => {
+    if (!canReorder) return;
+    const source = current.find(p => p.id === sourceId);
+    if (!source || source.status === "closed") return;
+    const group = current.filter(p => p.status === source.status).sort(compareProjects);
+    const reordered = reorderProjects(group, sourceId, targetId, direction);
+    if (!reordered || reordered.every((p, i) => p.id === group[i].id)) return;
+    if (group.length > 450) { message.error("This group is too large to reorder in one save."); return; }
+    setOrdering(true);
+    setOrderNotice("Saving project order…");
+    try {
+      await runTransaction(db, async transaction => {
+        const snapshots = await Promise.all(group.map(p => transaction.get(doc(db, "organizations", orgId, "projects", p.id))));
+        snapshots.forEach((snapshot, index) => {
+          const latest = snapshot.data();
+          if (!snapshot.exists() || latest.status !== source.status || latest.archived ||
+              (latest.priority ?? null) !== (group[index].priority ?? null)) {
+            throw new Error("Project order changed in another session. Refresh the dashboard and try again.");
+          }
+        });
+        reordered.forEach((p, index) => transaction.update(doc(db, "organizations", orgId, "projects", p.id), {
+          priority: index + 1, updatedAt: serverTimestamp(),
+        }));
+      });
+      const priorities = new Map(reordered.map((p, i) => [p.id, i + 1]));
+      setItems(previous => previous.map(p => priorities.has(p.id) ? { ...p, priority: priorities.get(p.id) } : p));
+      setOrderNotice(`Saved project order. ${source.title || "Project"} is now position ${reordered.findIndex(p => p.id === sourceId) + 1}.`);
+    } catch (error) {
+      setOrderNotice("Project order was not saved.");
+      message.error(error.message);
+    } finally { setOrdering(false); }
+  };
+
   const projectCard = (p) => (
-    <Card key={p.id} size="small" hoverable style={{ height: "100%", ...(isRepresentationOnly(p) ? { background: "#eaf4fb", borderColor: "#91bdd9" } : {}) }}>
-      <Space direction="vertical" size={6} style={{ width: "100%" }}>
+    <Card key={p.id} data-project-id={p.id} data-project-status={p.status} className={orderTarget === p.id ? "project-order-target" : ""} size="small" hoverable style={{ height: "100%", ...(isRepresentationOnly(p) ? { background: "#eaf4fb", borderColor: "#91bdd9" } : {}) }}>
+      {canEdit && p.status !== "closed" && !p.archived && (
+        <ProjectOrderHandle project={p} disabled={!canReorder} onMove={moveProject} onTarget={setOrderTarget} />
+      )}
+      <Space direction="vertical" size={6} style={{ width: canEdit && p.status !== "closed" && !p.archived ? "calc(100% - 38px)" : "100%" }}>
         <Space wrap size={4}>
           {isMember && (
             <Tag color={p.visibility === "private" ? "gold" : "default"}>
               {visibilityLabel(p.visibility)}
             </Tag>
           )}
-          {projectPriority(p) && <Tag>Priority {projectPriority(p)}</Tag>}
           {isRepresentationOnly(p) && <Tag color="blue">Deacon Participation Only</Tag>}
           {p.statusNote && <Tag>{p.statusNote}</Tag>}
         </Space>
@@ -359,12 +399,12 @@ function Dashboard({ user }) {
           <Typography.Text>Sort within status:</Typography.Text>
           <Select aria-label="Sort projects within status" value={sort} onChange={setSort}
             style={{ width: 170 }} options={[
-              { value: "priority", label: "Priority (1 first)" },
+              { value: "priority", label: "Priority order" },
               { value: "title", label: "Project title (A–Z)" },
             ]} />
         </Space>
         {isMember && (
-          <Button onClick={() => { setReviewStatuses([]); setReviewOpen(true); }}>
+          <Button disabled={ordering} onClick={() => { setReviewStatuses([]); setReviewOpen(true); }}>
             Print a Review Package
           </Button>
         )}
@@ -382,14 +422,21 @@ function Dashboard({ user }) {
         )}
         </Space>
       </div>
+      <div>
+      {canEdit && <Typography.Paragraph id="project-order-help" type="secondary" style={{ marginBottom: 0 }}>
+        Drag the dotted handles to reorder projects within a status group. Changes save automatically. Keyboard: focus a handle and use arrow keys.
+        {(needle || sort !== "priority") && " Clear search and choose Priority order to enable reordering."}
+      </Typography.Paragraph>}
+      <div role="status" aria-live="polite">{orderNotice}</div>
+      </div>
       <Modal
         title="Print a Review Package"
         open={reviewOpen && isMember}
         onCancel={() => setReviewOpen(false)}
         okText="Print / Save as PDF"
-        okButtonProps={{ disabled: !reviewStatuses.length || fetching || !!error }}
+        okButtonProps={{ disabled: !reviewStatuses.length || fetching || ordering || !!error }}
         onOk={() => {
-          const chosen = reviewPackageProjects(current, reviewStatuses, sort);
+          const chosen = reviewPackageProjects(current, reviewStatuses);
           if (!chosen.length) {
             message.info("No projects match the selected categories.");
             return;
@@ -411,7 +458,7 @@ function Dashboard({ user }) {
         />
         <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
           Closed projects are excluded. Each project starts on a new page.
-          Confidential projects are marked individually. Briefs follow the dashboard status and sort order. Search does not limit this package.
+          Confidential projects are marked individually. Briefs follow the saved dashboard order within each status. Search and title sorting do not change the package order.
         </Typography.Paragraph>
       </Modal>
       {printProjects && isMember && createPortal(
@@ -841,7 +888,6 @@ function Project({ user }) {
       ...existing,
       deliverableCategories: Array.isArray(project.deliverableCategories) ? project.deliverableCategories : [],
       visibility: project.visibility || "private",
-      priority: projectPriority(project),
       deaconRole: project.deaconRole || "leadership",
       supportingDocuments: Array.isArray(project.supportingDocuments) ? project.supportingDocuments : [],
       assumptionsTable:
@@ -864,7 +910,7 @@ function Project({ user }) {
       const existing = (project.supportingDocuments || []).find(d => d.url === url);
       return { ...existing, title, description, url, addedBy: existing?.addedBy || user.displayName || user.email || user.uid, dateAdded: existing?.dateAdded || new Date().toISOString() };
     });
-    const presentation = { priority: values.priority ?? null, deaconRole: values.deaconRole || "leadership", supportingDocuments };
+    const presentation = { deaconRole: values.deaconRole || "leadership", supportingDocuments };
     const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
     const assumptionsTable = cleanRows(values.assumptionsTable, [
       "assumption",
@@ -1075,11 +1121,6 @@ function Project({ user }) {
                   },
                 ]}
               />
-            </Form.Item>
-            <Form.Item name="priority" label="Dashboard priority"
-              extra="1 appears first within its status group. Leave blank for unprioritized projects; ties sort by title. The review package follows the dashboard order."
-              rules={[{ validator: (_, value) => value == null || (Number.isSafeInteger(value) && value > 0 && value <= 999999) ? Promise.resolve() : Promise.reject(new Error("Enter a positive whole number")) }]}>
-              <InputNumber min={1} max={999999} precision={0} style={{ width: 180 }} placeholder="Not prioritized" />
             </Form.Item>
             <Form.Item name="deaconRole"
               getValueProps={(value) => ({ checked: value === "representation" })}

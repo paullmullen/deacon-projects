@@ -30,3 +30,15 @@ export function safeDocumentUrl(value) {
     return null;
   }
 }
+
+// Return a new group in the requested order; callers persist sequential priorities.
+export function reorderProjects(group, sourceId, targetId, direction) {
+  const from = group.findIndex(p => p.id === sourceId);
+  const to = direction ? from + direction : group.findIndex(p => p.id === targetId);
+  if (from < 0 || to < 0 || to >= group.length || from === to) return null;
+  if (group[from].status !== group[to].status) return null;
+  const result = [...group];
+  const [moved] = result.splice(from, 1);
+  result.splice(to, 0, moved);
+  return result;
+}

@@ -39,3 +39,16 @@ test("document links allow HTTPS and reject executable or credential-bearing URL
     assert.equal(safeDocumentUrl(url),null);
   }
 });
+
+test("drag and keyboard moves preserve group membership and do not mutate input", async () => {
+  const { reorderProjects } = await import("./projectPresentation.js");
+  const group = [{id:"a",status:"active"},{id:"b",status:"active"},{id:"c",status:"active"}];
+  assert.deepEqual(reorderProjects(group,"a","c").map(p=>p.id),["b","c","a"]);
+  assert.deepEqual(reorderProjects(group,"c","a").map(p=>p.id),["c","a","b"]);
+  assert.deepEqual(reorderProjects(group,"b",null,-1).map(p=>p.id),["b","a","c"]);
+  assert.equal(reorderProjects(group,"a",null,-1),null);
+  assert.equal(reorderProjects(group,"c",null,1),null);
+  assert.equal(reorderProjects(group,"a","missing"),null);
+  assert.equal(reorderProjects([group[0],{id:"d",status:"draft"}],"a","d"),null);
+  assert.deepEqual(group.map(p=>p.id),["a","b","c"]);
+});

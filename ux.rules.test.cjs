@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const { test, before, after } = require("node:test");
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require("@firebase/rules-unit-testing");
-const { doc, setDoc, updateDoc } = require("firebase/firestore");
+const { doc, setDoc, updateDoc, runTransaction, getDoc } = require("firebase/firestore");
 let env;
 const root = "organizations/ux-test-org";
 before(async () => {
@@ -13,7 +13,7 @@ before(async () => {
     const db = context.firestore();
     await setDoc(doc(db, root, "members", "editor"), { role: "editor" });
     await setDoc(doc(db, root, "members", "viewer"), { role: "viewer" });
-    for (const [id, status, archived] of [["active","active",false],["closed","closed",false],["archived","proposed",true]]) {
+    for (const [id, status, archived] of [["second","active",false],["active","active",false],["closed","closed",false],["archived","proposed",true]]) {
       await setDoc(doc(db, root, "projects", id), {
         title: id, status, archived, visibility: "private", createdBy: "editor",
       });
@@ -49,4 +49,17 @@ test("viewers, visitors, closed projects and archived proposals remain protected
   await assertFails(updateDoc(project(null), { priority: 2 }));
   await assertFails(updateDoc(project("editor", "closed"), { priority: 2 }));
   await assertFails(updateDoc(project("editor", "archived"), { priority: 2 }));
+});
+
+test("project order saves atomically for editors", async () => {
+  const db = env.authenticatedContext("editor").firestore();
+  const first = doc(db, root, "projects", "active");
+  const second = doc(db, root, "projects", "second");
+  await assertSucceeds(runTransaction(db, async tx => {
+    await tx.get(first); await tx.get(second);
+    tx.update(first, { priority: 2 }); tx.update(second, { priority: 1 });
+  }));
+  const assert = require("node:assert/strict");
+  assert.equal((await getDoc(first)).data().priority, 2);
+  assert.equal((await getDoc(second)).data().priority, 1);
 });
