@@ -55,3 +55,7 @@
   .brief-running-header{height:48px;margin:0;padding:12px 0 8px}
   .brief-content{position:relative;z-index:1;margin-top:-48px;background:white}
 }
+
+.brief-print-notes{display:none}
+.brief-notes-meta{font-size:10px;color:var(--muted);margin-bottom:12px!important}
+@media print{.brief-print-notes{display:block;margin-top:24px;border-top:1px solid var(--line);padding-top:16px}}
