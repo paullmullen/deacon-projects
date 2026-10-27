@@ -39,9 +39,9 @@ const lines = (value) =>
     .split("\n")
     .map((x) => x.trim())
     .filter(Boolean);
-function Block({ heading, value, bullets = false }) {
+function Block({ heading, value, bullets = false, flowing = false }) {
   return (
-    <section className="brief-block">
+    <section className={`brief-block${flowing ? " brief-block-flowing" : ""}`}>
       <h2>{heading}</h2>
       {bullets && lines(value).length ? (
         <ul>
@@ -206,28 +206,31 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
           {lastEditLabel}
         </span>}
       </div>
-      <div className="brief-columns" style={participationOnly ? { gridTemplateColumns: "1fr" } : undefined}>
-        <div>
-          <Block heading="Why this matters" value={project.purpose} />
+      <div className="brief-narrative">
+          <Block heading="Why this matters" value={project.purpose} flowing />
           <Block
             heading="Detailed description and scope"
             value={project.longDescription}
+            flowing
           />
-          <Block heading="Out of scope" value={project.scope} />
-        </div>
-        {!participationOnly && <div>
+          <Block heading="Out of scope" value={project.scope} flowing />
+      </div>
+      {!participationOnly && <div className="brief-columns">
+        <div>
           <Block
             heading="Progress so far"
             value={project.accomplishments}
             bullets
           />
+        </div>
+        <div>
           <Block heading="Barriers and blockers" value={project.barriers} />
           <Block
             heading="Decisions or help needed"
             value={project.decisionsNeeded}
           />
-        </div>}
-      </div>
+        </div>
+      </div>}
       {!participationOnly && <>
       <section className="brief-block" style={{ marginTop: 16 }}>
         <h2 style={{ marginBottom: 12 }}>Project assumptions and next steps</h2>
@@ -285,3 +288,4 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
     </article>
   );
 }
+

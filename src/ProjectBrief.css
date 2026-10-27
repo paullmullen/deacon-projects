@@ -18,3 +18,11 @@
 .brief-document{margin-bottom:10px;break-inside:avoid;overflow-wrap:anywhere}
 .brief-document-url{display:none;font-size:10px;color:var(--muted);overflow-wrap:anywhere}
 @media print{.brief-documents{break-inside:auto}.brief-document-url{display:block}}
+
+/* Narrative uses the full page width and may continue onto subsequent pages. */
+.brief-narrative{margin-top:20px}
+.project-brief .brief-block-flowing{break-inside:auto}
+.brief-block-flowing h2,.brief-block-flowing .brief-markdown h3,.brief-block-flowing .brief-markdown h4,.brief-block-flowing .brief-markdown h5{break-after:avoid}
+.brief-block-flowing p{orphans:3;widows:3}
+@media(max-width:560px){.brief-columns{grid-template-columns:1fr}}
+
