@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const { test, before, after } = require("node:test");
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require("@firebase/rules-unit-testing");
-const { doc, setDoc, updateDoc, runTransaction, getDoc, serverTimestamp } = require("firebase/firestore");
+const { doc, setDoc, updateDoc, runTransaction, getDoc, getDocs, collection, deleteDoc, serverTimestamp } = require("firebase/firestore");
 let env;
 const root = "organizations/ux-test-org";
 before(async () => {
@@ -64,26 +64,42 @@ test("project order saves atomically for editors", async () => {
   assert.equal((await getDoc(second)).data().priority, 1);
 });
 
-const note = (uid, id = "active") => doc(
+const note = (uid, id = "active", noteId = "meeting-one") => doc(
   uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore(),
-  root, "projects", id, "notes", "current",
+  root, "projects", id, "notes", noteId,
 );
 const noteData = () => ({ body: "### Meeting notes\n\n**Decision:** Proceed.", editorUid: "editor", editorName: "Editor Name", editedAt: serverTimestamp() });
-test("notes are member-only even for public projects and record the actual editor and server time", async () => {
+test("notes append independently and cannot be changed or deleted", async () => {
   await assertSucceeds(setDoc(note("editor"), noteData()));
-  await assertSucceeds(getDoc(note("viewer")));
-  await assertFails(getDoc(note(null)));
-  await assertFails(getDoc(note("outsider")));
-  await assertFails(setDoc(note("viewer"), { ...noteData(), editorUid: "viewer" }));
-  await assertFails(setDoc(note("editor"), { ...noteData(), editorUid: "other" }));
-  await assertFails(setDoc(note("editor"), { ...noteData(), editedAt: new Date(0) }));
-  await assertFails(setDoc(note("editor"), { ...noteData(), body: "x".repeat(20001) }));
-  await assertFails(setDoc(note("editor", "closed"), noteData()));
-  await assertFails(setDoc(note("editor", "archived"), noteData()));
-  await assertFails(setDoc(note("editor", "missing"), noteData()));
+  await assertSucceeds(setDoc(note("editor", "active", "meeting-two"), noteData()));
+  await assertFails(updateDoc(note("editor"), { body: "Replacement" }));
+  await assertFails(setDoc(note("editor"), noteData()));
+  await assertFails(deleteDoc(note("editor")));
+  await assertFails(setDoc(note("editor", "active", "current"), noteData()));
+});
+test("notes enforce authorship, timestamps and project permissions", async () => {
+  const fresh = (uid, id = "active") => note(uid, id, "validation");
+  await assertFails(setDoc(fresh("viewer"), { ...noteData(), editorUid: "viewer" }));
+  await assertFails(setDoc(fresh("editor"), { ...noteData(), editorUid: "other" }));
+  await assertFails(setDoc(fresh("editor"), { ...noteData(), editedAt: new Date(0) }));
+  await assertFails(setDoc(fresh("editor"), { ...noteData(), body: "x".repeat(20001) }));
+  await assertFails(setDoc(fresh("editor"), { ...noteData(), body: "" }));
+  await assertFails(setDoc(fresh("editor", "closed"), noteData()));
+  await assertFails(setDoc(fresh("editor", "archived"), noteData()));
+  await assertFails(setDoc(fresh("editor", "missing"), noteData()));
+});
+test("members can read the record including legacy notes, visitors cannot even on public projects", async () => {
   await env.withSecurityRulesDisabled(async context => {
     await updateDoc(doc(context.firestore(), root, "projects", "active"), { visibility: "public" });
+    await setDoc(doc(context.firestore(), root, "projects", "active", "notes", "current"), noteData());
   });
   await assertSucceeds(getDoc(project(null)));
+  await assertSucceeds(getDoc(note("viewer", "active", "current")));
+  await assertFails(updateDoc(note("editor", "active", "current"), { body: "Overwrite old record" }));
   await assertFails(getDoc(note(null)));
+  await assertFails(getDoc(note("outsider")));
+  const notes = uid => collection(uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore(), root, "projects", "active", "notes");
+  await assertSucceeds(getDocs(notes("viewer")));
+  await assertFails(getDocs(notes(null)));
+  await assertFails(getDocs(notes("outsider")));
 });
