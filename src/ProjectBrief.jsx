@@ -1,4 +1,5 @@
 import React from "react";
+import { isRepresentationOnly, safeDocumentUrl } from "./projectPresentation";
 import "./ProjectBrief.css";
 import MarkdownText from "./MarkdownText";
 
@@ -159,6 +160,7 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
       <p className="brief-deck">{text(project.shortDescription)}</p>
       <div className="brief-meta">
         <Meta label="Project lead">{text(project.leadDeacon)}</Meta>
+        {isRepresentationOnly(project) && <Meta label="Deacon involvement">Representation — led by someone else</Meta>}
         <Meta label="Current status">{status}</Meta>
         <Meta label="Project team deliverables">
           <div>
@@ -250,6 +252,22 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
           />
         </div>
       </section>
+      {Array.isArray(project.supportingDocuments) && project.supportingDocuments.length > 0 && (
+        <section className="brief-block brief-documents">
+          <h2>Supporting documents</h2>
+          {project.supportingDocuments.map((document, index) => {
+            const href = safeDocumentUrl(document.url);
+            return (
+              <div key={index} className="brief-document">
+                {href ? <a href={href} target="_blank" rel="noopener noreferrer">{document.title || "Supporting document"}</a> : <strong>{document.title || "Supporting document"}</strong>}
+                {document.description && <p>{document.description}</p>}
+                {href && <div className="brief-document-url">{href}</div>}
+              </div>
+            );
+          })}
+        </section>
+      )}
+      {project.links?.trim() && <Block heading="Other supporting links" value={project.links} />}
       <footer className="brief-footer">
         <span>Updated {updated}</span>
         <span style={{ textAlign: "right", marginLeft: "auto" }}>
