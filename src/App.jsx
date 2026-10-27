@@ -1,6 +1,6 @@
 import ProjectBrief from "./ProjectBrief";
 import ProjectOrderHandle from "./ProjectOrderHandle";
-import { projectStatuses, projectPriority, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl, reorderProjects } from "./projectPresentation";
+import { projectStatuses, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl, reorderProjects } from "./projectPresentation";
 import { createPortal } from "react-dom";
 import "./ReviewPackage.css";
 import { useEffect, useState } from "react";
@@ -314,7 +314,6 @@ function Dashboard({ user }) {
               {visibilityLabel(p.visibility)}
             </Tag>
           )}
-          {projectPriority(p) && <Tag>Priority {projectPriority(p)}</Tag>}
           {isRepresentationOnly(p) && <Tag color="blue">Deacon Participation Only</Tag>}
           {p.statusNote && <Tag>{p.statusNote}</Tag>}
         </Space>
