@@ -152,6 +152,10 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
     lines(project.nextSteps).map((action) => ({ action, owner: "" }));
   return (
     <article className="project-brief" aria-label="Printable project brief">
+            <div className="brief-running-header brief-first-page-cover" aria-hidden="true">
+              <span>{text(project.title)}</span>
+              <span>Project brief · {project.visibility === "public" ? "Public" : "Confidential"}</span>
+            </div>
       <table className="brief-print-frame" role="presentation">
         <thead>
           <tr><td>
