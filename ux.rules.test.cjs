@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const { test, before, after } = require("node:test");
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require("@firebase/rules-unit-testing");
-const { doc, setDoc, updateDoc, runTransaction, getDoc } = require("firebase/firestore");
+const { doc, setDoc, updateDoc, runTransaction, getDoc, serverTimestamp } = require("firebase/firestore");
 let env;
 const root = "organizations/ux-test-org";
 before(async () => {
@@ -62,4 +62,28 @@ test("project order saves atomically for editors", async () => {
   const assert = require("node:assert/strict");
   assert.equal((await getDoc(first)).data().priority, 2);
   assert.equal((await getDoc(second)).data().priority, 1);
+});
+
+const note = (uid, id = "active") => doc(
+  uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore(),
+  root, "projects", id, "notes", "current",
+);
+const noteData = () => ({ body: "### Meeting notes\n\n**Decision:** Proceed.", editorUid: "editor", editorName: "Editor Name", editedAt: serverTimestamp() });
+test("notes are member-only even for public projects and record the actual editor and server time", async () => {
+  await assertSucceeds(setDoc(note("editor"), noteData()));
+  await assertSucceeds(getDoc(note("viewer")));
+  await assertFails(getDoc(note(null)));
+  await assertFails(getDoc(note("outsider")));
+  await assertFails(setDoc(note("viewer"), { ...noteData(), editorUid: "viewer" }));
+  await assertFails(setDoc(note("editor"), { ...noteData(), editorUid: "other" }));
+  await assertFails(setDoc(note("editor"), { ...noteData(), editedAt: new Date(0) }));
+  await assertFails(setDoc(note("editor"), { ...noteData(), body: "x".repeat(20001) }));
+  await assertFails(setDoc(note("editor", "closed"), noteData()));
+  await assertFails(setDoc(note("editor", "archived"), noteData()));
+  await assertFails(setDoc(note("editor", "missing"), noteData()));
+  await env.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), root, "projects", "active"), { visibility: "public" });
+  });
+  await assertSucceeds(getDoc(project(null)));
+  await assertFails(getDoc(note(null)));
 });
