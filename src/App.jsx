@@ -1389,11 +1389,15 @@ function Project({ user }) {
             </Space>
             </div>
           </Form>
-          <ProjectNotes orgId={orgId} projectId={projectId} user={user} />
         </Card>
       ) : (
         <>
           <ProjectBrief project={project} notes={role ? printNotes : null} orgName={org?.name || "Deacons"} />
+          {canEdit && (
+            <Card style={{ marginTop: 20 }}>
+              <ProjectNotes orgId={orgId} projectId={projectId} user={user} />
+            </Card>
+          )}
           {role && (
             <Card title="Lifecycle history" style={{ marginTop: 20 }}>
               <List
