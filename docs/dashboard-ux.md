@@ -2,8 +2,8 @@
 
 - Set a project's **Dashboard priority** in Edit brief. Positive whole numbers sort ascending within each lifecycle status; blank priorities follow numbered projects. Ties sort by title, then document ID.
 - The dashboard also offers title sorting. Review packages follow the selected dashboard sort and the same status sequence: Active, Proposed, Draft. Only checked statuses are included; Closed and archived projects are excluded. Dashboard search does not restrict the package.
-- Under Leadership and stakeholders, choose **Deacon representation — led by someone else** when appropriate. These projects have pale blue cards and a text label. Existing projects retain their normal appearance until explicitly changed.
-- Supporting documents can be added, edited, and removed in the final editor section. The existing Firestore fields `supportingDocuments` and `links` are used so existing links are preserved. Titled document links require HTTPS; file-host permissions remain authoritative. Links appear in individual briefs and review packages, with full URLs on paper.
+- Check **Deacon Participation Only** near the top of Edit brief when Deacons participate without leading. The brief (including review packages) then includes only section 1, Project overview, and section 2, Leadership and stakeholders. Schedule, deliverables, progress, assumptions, barriers, next steps, and supporting documents are omitted from that brief; their stored values are retained. Unchecking restores the full brief. These projects have pale blue cards and a text label. Existing projects retain their normal appearance until explicitly changed.
+- Supporting documents can be added, edited, and removed in the final editor section. The existing Firestore fields `supportingDocuments` and `links` are used so existing links are preserved. Titled document links require HTTPS; file-host permissions remain authoritative. Links appear in full individual briefs and review packages, with full URLs on paper; Participation Only briefs omit the supporting-documents section.
 
 ## Deploy
 
