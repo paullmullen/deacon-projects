@@ -274,7 +274,7 @@ function Dashboard({ user }) {
             </Tag>
           )}
           {projectPriority(p) && <Tag>Priority {projectPriority(p)}</Tag>}
-          {isRepresentationOnly(p) && <Tag color="blue">Deacon representation</Tag>}
+          {isRepresentationOnly(p) && <Tag color="blue">Deacon Participation Only</Tag>}
           {p.statusNote && <Tag>{p.statusNote}</Tag>}
         </Space>
         <Link
@@ -1081,6 +1081,12 @@ function Project({ user }) {
               rules={[{ validator: (_, value) => value == null || (Number.isSafeInteger(value) && value > 0 && value <= 999999) ? Promise.resolve() : Promise.reject(new Error("Enter a positive whole number")) }]}>
               <InputNumber min={1} max={999999} precision={0} style={{ width: 180 }} placeholder="Not prioritized" />
             </Form.Item>
+            <Form.Item name="deaconRole"
+              getValueProps={(value) => ({ checked: value === "representation" })}
+              getValueFromEvent={(event) => event.target.checked ? "representation" : "leadership"}
+              extra="Check when Deacons participate but do not lead. The project brief and review package will include only Project overview and Leadership and stakeholders (sections 1 and 2).">
+              <Checkbox>Deacon Participation Only</Checkbox>
+            </Form.Item>
             {briefSections.map((section, index) => (
               <details
                 key={section.title}
@@ -1129,15 +1135,6 @@ function Project({ user }) {
                     </Typography.Text>
                   )}
                 </Typography.Title>
-                {section.title === "Leadership and stakeholders" && (
-                  <Form.Item name="deaconRole" label="Deacon involvement"
-                    extra="Representation means Deacons participate, while someone else leads. These projects have blue dashboard cards.">
-                    <Select options={[
-                      { value: "leadership", label: "Deacon leadership" },
-                      { value: "representation", label: "Deacon representation — led by someone else" },
-                    ]} />
-                  </Form.Item>
-                )}
                 {section.title === "Supporting documents" && (
                   <>
                     <Typography.Paragraph type="secondary">
