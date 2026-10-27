@@ -1,4 +1,5 @@
 import ProjectBrief from "./ProjectBrief";
+import ProjectNotes, { loadProjectNotes } from "./ProjectNotes";
 import ProjectOrderHandle from "./ProjectOrderHandle";
 import { projectStatuses, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl, reorderProjects } from "./projectPresentation";
 import { createPortal } from "react-dom";
@@ -197,6 +198,8 @@ function Dashboard({ user }) {
   const [showClosed, setShowClosed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewStatuses, setReviewStatuses] = useState([]);
+  const [reviewNotes, setReviewNotes] = useState(false);
+  const [preparingPrint, setPreparingPrint] = useState(false);
   const [printProjects, setPrintProjects] = useState(null);
 
   useEffect(() => {
@@ -404,7 +407,7 @@ function Dashboard({ user }) {
             ]} />
         </Space>
         {isMember && (
-          <Button disabled={ordering} onClick={() => { setReviewStatuses([]); setReviewOpen(true); }}>
+          <Button disabled={ordering} onClick={() => { setReviewStatuses([]); setReviewNotes(false); setReviewOpen(true); }}>
             Print a Review Package
           </Button>
         )}
@@ -435,14 +438,20 @@ function Dashboard({ user }) {
         onCancel={() => setReviewOpen(false)}
         okText="Print / Save as PDF"
         okButtonProps={{ disabled: !reviewStatuses.length || fetching || ordering || !!error }}
-        onOk={() => {
+        confirmLoading={preparingPrint}
+        onOk={async () => {
           const chosen = reviewPackageProjects(current, reviewStatuses);
           if (!chosen.length) {
             message.info("No projects match the selected categories.");
             return;
           }
-          setReviewOpen(false);
-          setPrintProjects(chosen);
+          setPreparingPrint(true);
+          try {
+            const prepared = reviewNotes ? await Promise.all(chosen.map(async project => ({ ...project, printNotes: await loadProjectNotes(orgId, project.id) }))) : chosen;
+            setReviewOpen(false);
+            setPrintProjects(prepared);
+          } catch (e) { message.error(`Could not load notes: ${e.message}`); }
+          finally { setPreparingPrint(false); }
         }}
       >
         <Typography.Paragraph>Select the project categories to include.</Typography.Paragraph>
@@ -456,6 +465,7 @@ function Dashboard({ user }) {
             { label: "Active", value: "active" },
           ]}
         />
+        <Checkbox checked={reviewNotes} onChange={e => setReviewNotes(e.target.checked)} style={{ marginTop: 16 }}>Include comments / meeting notes</Checkbox>
         <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
           Closed projects are excluded. Each project starts on a new page.
           Confidential projects are marked individually. Briefs follow the saved dashboard order within each status. Search and title sorting do not change the package order.
@@ -472,7 +482,7 @@ function Dashboard({ user }) {
                   CONFIDENTIAL
                 </div>
               )}
-              <ProjectBrief project={project} orgName={org?.name || "Deacons"} />
+              <ProjectBrief project={project} notes={project.printNotes} orgName={org?.name || "Deacons"} />
             </div>
           ))}
         </div>,
@@ -748,6 +758,18 @@ function Project({ user }) {
   const [project, setProject] = useState(undefined);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [includeNotes, setIncludeNotes] = useState(false);
+  const [printNotes, setPrintNotes] = useState(null);
+  const [preparingPrint, setPreparingPrint] = useState(false);
+  const [printReady, setPrintReady] = useState(false);
+  useEffect(() => {
+    if (!printReady) return;
+    const clear = () => { setPrintReady(false); setPrintNotes(null); };
+    window.addEventListener("afterprint", clear);
+    const timer = window.setTimeout(() => window.print(), 250);
+    return () => { window.clearTimeout(timer); window.removeEventListener("afterprint", clear); };
+  }, [printReady]);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState([]);
   const [action, setAction] = useState(null);
@@ -990,7 +1012,7 @@ function Project({ user }) {
             </Button>
           )}
           {!editing && (
-            <Button onClick={() => window.print()}>Print / Save as PDF</Button>
+            <Button onClick={() => { setIncludeNotes(false); setPrintOpen(true); }}>Print / Save as PDF</Button>
           )}
           {!editing && canEdit && project.status === "draft" && (
             <>
@@ -1022,6 +1044,19 @@ function Project({ user }) {
           )}
         </Space>
       </div>
+      <Modal title="Print project brief" open={printOpen} onCancel={() => setPrintOpen(false)}
+        okText="Print / Save as PDF" confirmLoading={preparingPrint}
+        onOk={async () => {
+          setPreparingPrint(true);
+          try {
+            setPrintNotes(includeNotes && role ? await loadProjectNotes(orgId, projectId) : null);
+            setPrintOpen(false); setPrintReady(true);
+          } catch (e) { message.error(`Could not load notes: ${e.message}`); }
+          finally { setPreparingPrint(false); }
+        }}>
+        <Typography.Paragraph>Print the project brief or save it as a PDF.</Typography.Paragraph>
+        {role && <Checkbox checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)}>Include comments / meeting notes</Checkbox>}
+      </Modal>
       <Modal
         title={
           {
@@ -1357,7 +1392,12 @@ function Project({ user }) {
         </Card>
       ) : (
         <>
-          <ProjectBrief project={project} orgName={org?.name || "Deacons"} />
+          <ProjectBrief project={project} notes={role ? printNotes : null} orgName={org?.name || "Deacons"} />
+          {role && (
+            <Card style={{ marginTop: 20 }}>
+              <ProjectNotes key={`${orgId}/${projectId}`} orgId={orgId} projectId={projectId} user={user} canAdd={canEdit} />
+            </Card>
+          )}
           {role && (
             <Card title="Lifecycle history" style={{ marginTop: 20 }}>
               <List

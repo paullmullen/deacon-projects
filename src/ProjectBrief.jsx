@@ -2,6 +2,7 @@ import React from "react";
 import { isRepresentationOnly, safeDocumentUrl } from "./projectPresentation";
 import "./ProjectBrief.css";
 import MarkdownText from "./MarkdownText";
+import { NotesContent } from "./ProjectNotesContent";
 
 const text = (value) =>
   typeof value === "string" && value.trim() ? value.trim() : "—";
@@ -117,7 +118,7 @@ function BriefTable({ heading, columns, rows }) {
     </section>
   );
 }
-export default function ProjectBrief({ project, orgName = "Deacons" }) {
+export default function ProjectBrief({ project, notes = null, orgName = "Deacons" }) {
   const participationOnly = isRepresentationOnly(project);
   const updated =
     project.updatedAt?.toDate?.()?.toLocaleDateString("en-US", {
@@ -289,6 +290,7 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
       )}
       {project.links?.trim() && <Block heading="Other supporting links" value={project.links} />}
       </>}
+      {notes && <div className="brief-print-notes"><NotesContent notes={notes} /></div>}
       <footer className="brief-footer">
         <span>Updated {updated}</span>
         <span style={{ textAlign: "right", marginLeft: "auto" }}>
