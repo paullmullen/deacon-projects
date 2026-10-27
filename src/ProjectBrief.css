@@ -1,8 +1,8 @@
 .project-brief{--ink:#253540;--muted:#53697a;--line:#cbd6dd;--blue:#315d76;box-sizing:border-box;width:100%;max-width:816px;min-height:1056px;margin:0 auto;padding:45px 46px 40px;background:#fff;color:var(--ink);font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.45;box-shadow:0 3px 22px rgba(22,45,60,.12)}
 .project-brief *{box-sizing:border-box}.brief-top-rule{height:6px;background:var(--blue);margin-bottom:42px}.brief-eyebrow{font-size:11px;letter-spacing:.02em;color:var(--blue);font-weight:700;margin-bottom:13px}.project-brief h1{font-size:32px;line-height:1.12;margin:0 0 14px;font-weight:700;letter-spacing:-.5px}.brief-deck{font-size:14px;line-height:1.5;margin:0 0 20px}.brief-meta{border-top:2px solid var(--line);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:26px;row-gap:18px;padding:16px 0 32px}.brief-meta-item{min-width:0;white-space:pre-line;overflow-wrap:anywhere}.brief-meta-label{font-size:10px;color:var(--muted);margin-bottom:3px}.brief-meta-value{font-size:12px;font-weight:700;line-height:1.4}.brief-columns{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:20px}.brief-block{break-inside:avoid;margin:0 0 19px}.brief-block h2,.brief-decision h2{font-size:14px;font-weight:700;line-height:1.3;margin:0 0 7px}.brief-block p,.brief-decision p{margin:0;white-space:pre-line;overflow-wrap:anywhere}.brief-block ul{padding:0;margin:0;list-style:none}.brief-block li{margin-bottom:4px;break-inside:avoid}.brief-block li:before{content:'• ';}.brief-decision{border-left:4px solid var(--blue);background:#eaf1f5;padding:14px 13px;margin:7px 0 30px;break-inside:avoid}.brief-footer{border-top:2px solid var(--line);padding-top:9px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between;gap:24px;overflow-wrap:anywhere}.brief-footer span{max-width:50%}
 @media(max-width:700px){.project-brief{min-height:auto;padding:26px 22px}.brief-top-rule{margin-bottom:24px}.brief-meta{column-gap:12px}.brief-columns{gap:16px}.project-brief h1{font-size:26px}}
-@page{size:letter;margin:0}
-@media print{html,body,#root{margin:0!important;padding:0!important;background:white!important}body *{visibility:hidden!important}.project-brief,.project-brief *{visibility:visible!important}.project-brief{position:absolute;top:0;left:0;max-width:none;width:8.5in;min-height:11in;box-shadow:none!important;padding:0.47in 0.47in 0.42in;print-color-adjust:exact;-webkit-print-color-adjust:exact}.brief-top-rule{margin-bottom:34px}.brief-block,.brief-decision,.brief-meta-item{break-inside:avoid}.brief-footer{break-inside:avoid}}
+@page{size:letter;margin:0.5in}
+@media print{html,body,#root{margin:0!important;padding:0!important;background:white!important}body *{visibility:hidden!important}.project-brief,.project-brief *{visibility:visible!important}.project-brief{position:absolute;top:0;left:0;max-width:none;width:100%;min-height:0;box-shadow:none!important;padding:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}.brief-top-rule{margin-bottom:34px}.brief-block,.brief-decision,.brief-meta-item{break-inside:avoid}.brief-footer{break-inside:avoid}}
 
 @media print {.ant-modal-root,.ant-card{display:none!important}}
 
@@ -18,3 +18,40 @@
 .brief-document{margin-bottom:10px;break-inside:avoid;overflow-wrap:anywhere}
 .brief-document-url{display:none;font-size:10px;color:var(--muted);overflow-wrap:anywhere}
 @media print{.brief-documents{break-inside:auto}.brief-document-url{display:block}}
+
+/* Narrative uses the full page width and may continue onto subsequent pages. */
+.brief-narrative{margin-top:20px}
+.project-brief .brief-block-flowing{break-inside:auto}
+.brief-block-flowing h2,.brief-block-flowing .brief-markdown h3,.brief-block-flowing .brief-markdown h4,.brief-block-flowing .brief-markdown h5{break-after:avoid}
+.brief-block-flowing p{orphans:3;widows:3}
+@media(max-width:560px){.brief-columns{grid-template-columns:1fr}}
+
+/* A table header repeats for this project only, including in review packages. */
+.brief-print-frame,.brief-print-frame>tbody,.brief-print-frame>tbody>tr,.brief-print-body{display:block;width:100%}
+.brief-print-frame{border:0;border-spacing:0}
+.brief-print-frame>thead{display:none}
+.brief-print-body{padding:0}
+@media print{
+  .brief-print-frame{display:table;table-layout:fixed;border-collapse:collapse}
+  .brief-print-frame>thead{display:table-header-group;break-inside:avoid}
+  .brief-print-frame>tbody{display:table-row-group}
+  .brief-print-frame>thead>tr,.brief-print-frame>tbody>tr{display:table-row}
+  .brief-print-frame>thead>tr>td,.brief-print-body{display:table-cell;padding:0;vertical-align:top}
+  .brief-running-header{display:flex;justify-content:space-between;align-items:baseline;gap:18px;border-bottom:1px solid var(--line);padding:12px 0 8px;margin-bottom:16px;color:var(--blue);font-size:11px;font-weight:700;overflow-wrap:anywhere}
+  .brief-running-header>span:first-child{min-width:0}
+  .brief-running-header>span:last-child{flex-shrink:0;font-size:9px;font-weight:400}
+}
+
+
+/* Use page margins so every continuation page retains printer-safe whitespace. */
+@media print{
+  .review-package-item{width:100%}
+  .review-package-item .project-brief{width:100%;min-height:0}
+  .review-package-watermark{left:0;width:100%;top:3.9in}
+}
+
+/* The opening content occupies the first header slot; later pages retain it. */
+@media print{
+  .brief-running-header{height:48px;margin:0;padding:12px 0 8px}
+  .brief-content{position:relative;z-index:1;margin-top:-48px;background:white}
+}
