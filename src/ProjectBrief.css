@@ -13,3 +13,8 @@
 .project-brief .brief-markdown li::before{content:none}
 .project-brief .brief-markdown p{margin:0 0 8px;white-space:normal}
 .project-brief .brief-markdown > :last-child{margin-bottom:0}
+
+
+.brief-document{margin-bottom:10px;break-inside:avoid;overflow-wrap:anywhere}
+.brief-document-url{display:none;font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+@media print{.brief-documents{break-inside:auto}.brief-document-url{display:block}}
