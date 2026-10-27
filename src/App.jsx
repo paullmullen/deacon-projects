@@ -1,4 +1,5 @@
 import ProjectBrief from "./ProjectBrief";
+import { projectStatuses, projectPriority, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl } from "./projectPresentation";
 import { createPortal } from "react-dom";
 import "./ReviewPackage.css";
 import { useEffect, useState } from "react";
@@ -9,6 +10,7 @@ import {
   Checkbox,
   Form,
   Input,
+  InputNumber,
   Layout,
   List,
   Row,
@@ -51,7 +53,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 const { Header, Content } = Layout;
-const statuses = ["active", "proposed", "draft", "closed"];
+const statuses = projectStatuses;
 const remainingTime = (value, now = new Date()) => {
   if (!value) return "Ongoing";
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -187,6 +189,7 @@ function Dashboard({ user }) {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [sort, setSort] = useState("priority");
   const [showClosed, setShowClosed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewStatuses, setReviewStatuses] = useState([]);
@@ -258,11 +261,11 @@ function Dashboard({ user }) {
           .toLowerCase()
           .includes(needle),
     );
-  const visible = current.filter(matches);
+  const visible = current.filter(matches).sort((a, b) => compareProjects(a, b, sort));
   const count = (status) => current.filter((p) => p.status === status).length;
 
   const projectCard = (p) => (
-    <Card key={p.id} size="small" hoverable style={{ height: "100%" }}>
+    <Card key={p.id} size="small" hoverable style={{ height: "100%", ...(isRepresentationOnly(p) ? { background: "#eaf4fb", borderColor: "#91bdd9" } : {}) }}>
       <Space direction="vertical" size={6} style={{ width: "100%" }}>
         <Space wrap size={4}>
           {isMember && (
@@ -270,6 +273,8 @@ function Dashboard({ user }) {
               {visibilityLabel(p.visibility)}
             </Tag>
           )}
+          {projectPriority(p) && <Tag>Priority {projectPriority(p)}</Tag>}
+          {isRepresentationOnly(p) && <Tag color="blue">Deacon Participation Only</Tag>}
           {p.statusNote && <Tag>{p.statusNote}</Tag>}
         </Space>
         <Link
@@ -350,6 +355,14 @@ function Dashboard({ user }) {
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: 260, maxWidth: "100%" }}
         />
+        <Space>
+          <Typography.Text>Sort within status:</Typography.Text>
+          <Select aria-label="Sort projects within status" value={sort} onChange={setSort}
+            style={{ width: 170 }} options={[
+              { value: "priority", label: "Priority (1 first)" },
+              { value: "title", label: "Project title (A–Z)" },
+            ]} />
+        </Space>
         {isMember && (
           <Button onClick={() => { setReviewStatuses([]); setReviewOpen(true); }}>
             Print a Review Package
@@ -376,13 +389,7 @@ function Dashboard({ user }) {
         okText="Print / Save as PDF"
         okButtonProps={{ disabled: !reviewStatuses.length || fetching || !!error }}
         onOk={() => {
-          const selected = ["draft", "proposed", "active"]
-            .filter((status) => reviewStatuses.includes(status));
-          const chosen = current
-            .filter((project) => selected.includes(project.status))
-            .sort((a, b) =>
-              selected.indexOf(a.status) - selected.indexOf(b.status) ||
-              (a.title || "").localeCompare(b.title || ""));
+          const chosen = reviewPackageProjects(current, reviewStatuses, sort);
           if (!chosen.length) {
             message.info("No projects match the selected categories.");
             return;
@@ -404,7 +411,7 @@ function Dashboard({ user }) {
         />
         <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
           Closed projects are excluded. Each project starts on a new page.
-          Confidential projects are marked individually.
+          Confidential projects are marked individually. Briefs follow the dashboard status and sort order. Search does not limit this package.
         </Typography.Paragraph>
       </Modal>
       {printProjects && isMember && createPortal(
@@ -491,7 +498,7 @@ function Dashboard({ user }) {
                 Archived proposals ({archived.filter(matches).length})
               </Typography.Title>
               <Row gutter={[12, 12]}>
-                {archived.filter(matches).map((p) => (
+                {archived.filter(matches).sort((a, b) => compareProjects(a, b, sort)).map((p) => (
                   <Col key={p.id} xs={24} md={12} xl={8}>
                     {projectCard(p)}
                   </Col>
@@ -570,6 +577,7 @@ const sectionGuidance = {
   "Schedule and outcomes": "What should the team deliver, and when?",
   "Assumptions and barriers": "What must be true, and what might prevent success?",
   "Progress and decisions": "What has happened, and what needs to happen next?",
+  "Supporting documents": "Link to supporting files in OneDrive, SharePoint, or another HTTPS location.",
 };
 const briefSections = [
   {
@@ -585,7 +593,7 @@ const briefSections = [
   {
     title: "Leadership and stakeholders",
     fields: [
-      ["leadDeacon", "Project lead / Lead Deacon", "short"],
+      ["leadDeacon", "Project lead", "short"],
       ["projectSponsor", "Project sponsor(s)", "long", 500],
       [
         "stakeholders",
@@ -618,6 +626,7 @@ const briefSections = [
       ["decisionsNeeded", "Decisions or help needed", "long", 1000],
     ],
   },
+  { title: "Supporting documents", fields: [["links", "Other supporting links (optional)", "long", 4000]] },
 ];
 // Structured tables. Existing plain-text fields are preserved for compatibility.
 const legacyRows = (text, field) =>
@@ -832,6 +841,9 @@ function Project({ user }) {
       ...existing,
       deliverableCategories: Array.isArray(project.deliverableCategories) ? project.deliverableCategories : [],
       visibility: project.visibility || "private",
+      priority: projectPriority(project),
+      deaconRole: project.deaconRole || "leadership",
+      supportingDocuments: Array.isArray(project.supportingDocuments) ? project.supportingDocuments : [],
       assumptionsTable:
         project.assumptionsTable ||
         legacyRows(project.assumptions, "assumptions"),
@@ -845,6 +857,14 @@ function Project({ user }) {
     const fields = Object.fromEntries(
       briefKeys.map((k) => [k, (values[k] || "").trim()]),
     );
+    const supportingDocuments = (values.supportingDocuments || []).map(row => {
+      const title = (row.title || "").trim();
+      const description = (row.description || "").trim();
+      const url = (row.url || "").trim();
+      const existing = (project.supportingDocuments || []).find(d => d.url === url);
+      return { ...existing, title, description, url, addedBy: existing?.addedBy || user.displayName || user.email || user.uid, dateAdded: existing?.dateAdded || new Date().toISOString() };
+    });
+    const presentation = { priority: values.priority ?? null, deaconRole: values.deaconRole || "leadership", supportingDocuments };
     const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
     const assumptionsTable = cleanRows(values.assumptionsTable, [
       "assumption",
@@ -875,6 +895,7 @@ function Project({ user }) {
     try {
       await updateDoc(doc(db, "organizations", orgId, "projects", projectId), {
         ...fields,
+        ...presentation,
         deliverableCategories: selectedDeliverables,
         assumptionsTable,
         nextStepsTable,
@@ -886,6 +907,7 @@ function Project({ user }) {
       setProject((p) => ({
         ...p,
         ...fields,
+        ...presentation,
         deliverableCategories: selectedDeliverables,
         assumptionsTable,
         nextStepsTable,
@@ -1054,6 +1076,17 @@ function Project({ user }) {
                 ]}
               />
             </Form.Item>
+            <Form.Item name="priority" label="Dashboard priority"
+              extra="1 appears first within its status group. Leave blank for unprioritized projects; ties sort by title. The review package follows the dashboard order."
+              rules={[{ validator: (_, value) => value == null || (Number.isSafeInteger(value) && value > 0 && value <= 999999) ? Promise.resolve() : Promise.reject(new Error("Enter a positive whole number")) }]}>
+              <InputNumber min={1} max={999999} precision={0} style={{ width: 180 }} placeholder="Not prioritized" />
+            </Form.Item>
+            <Form.Item name="deaconRole"
+              getValueProps={(value) => ({ checked: value === "representation" })}
+              getValueFromEvent={(event) => event.target.checked ? "representation" : "leadership"}
+              extra="Check when Deacons participate but do not lead. The project brief and review package will include only Project overview and Leadership and stakeholders (sections 1 and 2).">
+              <Checkbox>Deacon Participation Only</Checkbox>
+            </Form.Item>
             {briefSections.map((section, index) => (
               <details
                 key={section.title}
@@ -1102,6 +1135,27 @@ function Project({ user }) {
                     </Typography.Text>
                   )}
                 </Typography.Title>
+                {section.title === "Supporting documents" && (
+                  <>
+                    <Typography.Paragraph type="secondary">
+                      Links appear in the project brief and review package. Access to each file is controlled by its host.
+                    </Typography.Paragraph>
+                    <Form.List name="supportingDocuments">
+                      {(fields, { add, remove }) => (
+                        <Space direction="vertical" style={{ width: "100%" }}>
+                          {fields.map(({ key, name, ...rest }) => (
+                            <Card key={key} size="small" title={`Document ${name + 1}`} extra={<Button danger onClick={() => remove(name)}>Remove</Button>}>
+                              <Form.Item {...rest} name={[name, "title"]} label="Document title" rules={[{ required: true, whitespace: true, max: 200 }]}><Input maxLength={200} /></Form.Item>
+                              <Form.Item {...rest} name={[name, "url"]} label="Document link" rules={[{ required: true }, { validator: (_, value) => safeDocumentUrl(value) ? Promise.resolve() : Promise.reject(new Error("Enter a complete HTTPS link")) }]}><Input placeholder="https://…" /></Form.Item>
+                              <Form.Item {...rest} name={[name, "description"]} label="Description (optional)" rules={[{ max: 500 }]}><Input.TextArea rows={2} maxLength={500} /></Form.Item>
+                            </Card>
+                          ))}
+                          {fields.length < 20 && <Button onClick={() => add()}>+ Add document link</Button>}
+                        </Space>
+                      )}
+                    </Form.List>
+                  </>
+                )}
                 {section.title === "Assumptions and barriers" && (
                   <div style={{ marginBottom: 20 }}>
                     <Typography.Text strong>
@@ -1165,7 +1219,9 @@ function Project({ user }) {
                     name={key}
                     label={label}
                     extra={
-                      key === "expectedOutcome"
+                      key === "links"
+                        ? "Existing links are preserved here. Use the document list above for titled links, or use [title](https://example.com) here."
+                        : key === "expectedOutcome"
                         ? "Be specific about what the team is expected to deliver. This is different from why the project matters."
                          : key === "projectSponsor"
                         ? "This is the person in authority who really wants this to happen and can help clear roadblocks if needed."

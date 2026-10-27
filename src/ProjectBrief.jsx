@@ -1,4 +1,5 @@
 import React from "react";
+import { isRepresentationOnly, safeDocumentUrl } from "./projectPresentation";
 import "./ProjectBrief.css";
 import MarkdownText from "./MarkdownText";
 
@@ -117,6 +118,7 @@ function BriefTable({ heading, columns, rows }) {
   );
 }
 export default function ProjectBrief({ project, orgName = "Deacons" }) {
+  const participationOnly = isRepresentationOnly(project);
   const updated =
     project.updatedAt?.toDate?.()?.toLocaleDateString("en-US", {
       month: "long",
@@ -159,6 +161,8 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
       <p className="brief-deck">{text(project.shortDescription)}</p>
       <div className="brief-meta">
         <Meta label="Project lead">{text(project.leadDeacon)}</Meta>
+        {participationOnly && <Meta label="Deacon involvement">Deacon Participation Only</Meta>}
+        {!participationOnly && <>
         <Meta label="Current status">{status}</Meta>
         <Meta label="Project team deliverables">
           <div>
@@ -170,7 +174,9 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
 
           </div>
         </Meta>
+        </>}
         <Meta label="Project team">{text(project.teamMembers)}</Meta>
+        {!participationOnly && <>
         <Meta label="Kick-off">{date(project.kickoffDate)}</Meta>
         <Meta label="Target completion">
           <div>{project.targetDate ? date(project.targetDate) : "Ongoing"}</div>
@@ -180,6 +186,7 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
             </div>
           )}
         </Meta>
+        </>}
         <Meta label="Project sponsor">{text(project.projectSponsor)}</Meta>
         <Meta label="Key stakeholders">{text(project.stakeholders)}</Meta>
       </div>
@@ -194,12 +201,12 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
           marginBottom: 8,
         }}
       >
-        <h2 style={{ margin: 0 }}>Project details and progress</h2>
-        <span style={{ color: "#666", fontSize: "0.85em" }}>
+        <h2 style={{ margin: 0 }}>{participationOnly ? "Project overview" : "Project details and progress"}</h2>
+        {!participationOnly && <span style={{ color: "#666", fontSize: "0.85em" }}>
           {lastEditLabel}
-        </span>
+        </span>}
       </div>
-      <div className="brief-columns">
+      <div className="brief-columns" style={participationOnly ? { gridTemplateColumns: "1fr" } : undefined}>
         <div>
           <Block heading="Why this matters" value={project.purpose} />
           <Block
@@ -208,7 +215,7 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
           />
           <Block heading="Out of scope" value={project.scope} />
         </div>
-        <div>
+        {!participationOnly && <div>
           <Block
             heading="Progress so far"
             value={project.accomplishments}
@@ -219,8 +226,9 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
             heading="Decisions or help needed"
             value={project.decisionsNeeded}
           />
-        </div>
+        </div>}
       </div>
+      {!participationOnly && <>
       <section className="brief-block" style={{ marginTop: 16 }}>
         <h2 style={{ marginBottom: 12 }}>Project assumptions and next steps</h2>
         <div
@@ -250,6 +258,23 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
           />
         </div>
       </section>
+      {Array.isArray(project.supportingDocuments) && project.supportingDocuments.length > 0 && (
+        <section className="brief-block brief-documents">
+          <h2>Supporting documents</h2>
+          {project.supportingDocuments.map((document, index) => {
+            const href = safeDocumentUrl(document.url);
+            return (
+              <div key={index} className="brief-document">
+                {href ? <a href={href} target="_blank" rel="noopener noreferrer">{document.title || "Supporting document"}</a> : <strong>{document.title || "Supporting document"}</strong>}
+                {document.description && <p>{document.description}</p>}
+                {href && <div className="brief-document-url">{href}</div>}
+              </div>
+            );
+          })}
+        </section>
+      )}
+      {project.links?.trim() && <Block heading="Other supporting links" value={project.links} />}
+      </>}
       <footer className="brief-footer">
         <span>Updated {updated}</span>
         <span style={{ textAlign: "right", marginLeft: "auto" }}>
