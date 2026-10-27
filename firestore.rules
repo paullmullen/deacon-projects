@@ -129,6 +129,22 @@ service cloud.firestore {
           );
         // Only drafts can be permanently deleted.
         allow delete: if canEdit(orgId) && resource.data.status == 'draft';
+        // Notes are separate from publicly readable project documents.
+        match /notes/{noteId} {
+          allow get: if noteId == 'current' && isMember(orgId)
+            && exists(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId));
+          allow create, update: if noteId == 'current' && canEdit(orgId)
+            && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.status != 'closed'
+            && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.get('archived', false) == false
+            && request.resource.data.keys().hasAll(['body','editorUid','editorName','editedAt'])
+            && request.resource.data.keys().hasOnly(['body','editorUid','editorName','editedAt'])
+            && request.resource.data.body is string && request.resource.data.body.size() <= 20000
+            && request.resource.data.editorUid == request.auth.uid
+            && request.resource.data.editorName is string
+            && request.resource.data.editorName.size() > 0 && request.resource.data.editorName.size() <= 320
+            && request.resource.data.editedAt == request.time;
+          allow list, delete: if false;
+        }
         match /history/{eventId} {
           allow get, list: if isMember(orgId);
           allow create: if canEdit(orgId)
