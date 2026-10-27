@@ -49,3 +49,13 @@
   .review-package-item .project-brief{width:100%;min-height:0}
   .review-package-watermark{left:0;width:100%;top:3.9in}
 }
+
+/* Cover the first running header only. This belongs to each article, so
+   the first page of every project in a review package is treated alike.
+   Matching header markup keeps the cover correct when long titles wrap. */
+.brief-first-page-cover{display:none}
+@media print{
+  .project-brief{position:relative}
+  .project-brief>.brief-first-page-cover{display:flex;position:absolute;top:0;left:0;width:100%;z-index:2;background:white;border-bottom-color:white}
+  .brief-first-page-cover>span{visibility:hidden!important}
+}
