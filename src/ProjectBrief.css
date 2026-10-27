@@ -26,3 +26,19 @@
 .brief-block-flowing p{orphans:3;widows:3}
 @media(max-width:560px){.brief-columns{grid-template-columns:1fr}}
 
+/* A table header repeats for this project only, including in review packages. */
+.brief-print-frame,.brief-print-frame>tbody,.brief-print-frame>tbody>tr,.brief-print-body{display:block;width:100%}
+.brief-print-frame{border:0;border-spacing:0}
+.brief-print-frame>thead{display:none}
+.brief-print-body{padding:0}
+@media print{
+  .brief-print-frame{display:table;table-layout:fixed;border-collapse:collapse}
+  .brief-print-frame>thead{display:table-header-group;break-inside:avoid}
+  .brief-print-frame>tbody{display:table-row-group}
+  .brief-print-frame>thead>tr,.brief-print-frame>tbody>tr{display:table-row}
+  .brief-print-frame>thead>tr>td,.brief-print-body{display:table-cell;padding:0;vertical-align:top}
+  .brief-running-header{display:flex;justify-content:space-between;align-items:baseline;gap:18px;border-bottom:1px solid var(--line);padding:12px 0 8px;margin-bottom:16px;color:var(--blue);font-size:11px;font-weight:700;overflow-wrap:anywhere}
+  .brief-running-header>span:first-child{min-width:0}
+  .brief-running-header>span:last-child{flex-shrink:0;font-size:9px;font-weight:400}
+}
+

@@ -152,6 +152,16 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
     lines(project.nextSteps).map((action) => ({ action, owner: "" }));
   return (
     <article className="project-brief" aria-label="Printable project brief">
+      <table className="brief-print-frame" role="presentation">
+        <thead>
+          <tr><td>
+            <div className="brief-running-header">
+              <span>{text(project.title)}</span>
+              <span>Project brief · {project.visibility === "public" ? "Public" : "Confidential"}</span>
+            </div>
+          </td></tr>
+        </thead>
+        <tbody><tr><td className="brief-print-body">
       <div className="brief-top-rule" />
       <div className="brief-eyebrow">
         {orgName.toUpperCase()} · PROJECT BRIEF ·{" "}
@@ -285,6 +295,8 @@ export default function ProjectBrief({ project, orgName = "Deacons" }) {
           <a href="http://deaconprojects.web.app/org/elmbrook">http://deaconprojects.web.app/org/elmbrook</a>
         </span>
       </footer>
+        </td></tr></tbody>
+      </table>
     </article>
   );
 }
