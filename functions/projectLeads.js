@@ -16,13 +16,13 @@ exports.listProjectLeads = onCall({region:'us-central1',invoker:'public'}, async
   const snapshot = await db.collection(`organizations/${orgId}/members`).get();
   const members = snapshot.docs.filter(member => eligibleLead(member.data()));
   const leads = [];
-  // This editor-only directory uses Auth for account eligibility and identity.
+  // Membership controls the organization display name; Auth controls account eligibility and email.
   for (let offset=0; offset<members.length; offset+=100) {
     const result = await getAuth().getUsers(members.slice(offset,offset+100).map(member=>({uid:member.id})));
     for (const user of result.users) {
       if (user.disabled || !user.emailVerified || !user.email) continue;
       const member = members.find(member=>member.id===user.uid);
-      const name = String(user.displayName || member.get('displayName') || 'Organization member').slice(0,160);
+      const name = ([member.get('displayName'), user.displayName].find(value => typeof value === 'string' && value.trim()) || 'Organization member').trim().slice(0,160);
       leads.push({uid:user.uid,name,email:user.email});
     }
   }
