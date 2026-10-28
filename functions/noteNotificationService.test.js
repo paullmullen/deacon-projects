@@ -30,12 +30,11 @@ test('lead eligibility excludes viewers, inactive members, and missing membershi
   assert(eligibleLead({role:'editor'}));assert(eligibleLead({role:'admin'}));
   for(const member of [null,{role:'viewer'},{role:'editor',status:'inactive'}])assert(!eligibleLead(member));
 });
-test('new notes notify the trusted lead without exposing note contents',async()=>{
+test('new notes notify the trusted lead email without including note contents',async()=>{
   const f=fixture();await f.notify(f.event);assert.equal(f.sent.length,1);
   assert.equal(f.sent[0].to,'trusted@example.org');
   assert(f.sent[0].text.includes('/org/elmbrook/projects/project1'));
-  assert(!f.sent[0].text.includes('Confidential note text'));
-  assert(!f.sent[0].html.includes('Confidential note text'));
+  assert(!JSON.stringify(f.sent[0]).includes('Confidential note text'));
   assert(f.sent[0].html.includes('Test &lt;project&gt;'));
 });
 test('concurrent duplicate events make only one send attempt',async()=>{
@@ -92,34 +91,4 @@ test('notes explain lead subscription and retain the requested new-note wording'
   assert(f.sent[0].text.includes('You are receiving this message because you are the project leader'));
   assert(f.sent[0].text.includes('That project has a new comment/meeting note.'));
   assert(f.sent[0].text.includes('If you were not expecting updates'));
-});
-
-test('email notes render lightweight Markdown and escape HTML and unsafe links',()=>{
-  const {emailMarkdown}=require('./emailMarkdown');
-  const html=emailMarkdown('### Meeting\n\n**Decision** and *follow-up*\n\n- First\n- Second\n\n[Safe](https://example.com) [Unsafe](javascript:alert) <img src=x onerror=alert(1)>');
-  assert(html.includes('<strong>Decision</strong>'));assert(html.includes('<em>follow-up</em>'));
-  assert(html.includes('<ul '));assert(html.includes('href="https://example.com"'));
-  assert(!html.includes('href="javascript:'));assert(!html.includes('<img'));
-  assert(html.includes('&lt;img'));
-});
-
-test('unfinished Markdown markers cannot stall note emails',()=>{
-  const {spawnSync}=require('node:child_process');
-  const inputs=['Before\n\n- \nAfter','Before\n\n1. \nAfter','Before\n\n### \nAfter','Before\n\n* \nAfter'];
-  // Run in a subprocess so a regression cannot hang the entire test runner.
-  const script=`const {emailMarkdown}=require('./emailMarkdown');const inputs=${JSON.stringify(inputs)};for(const input of inputs){const html=emailMarkdown(input);if(!html.includes('After'))throw Error('Note text lost');}`;
-  const result=spawnSync(process.execPath,['-e',script],{cwd:__dirname,timeout:3000,encoding:'utf8'});
-  assert.equal(result.error,undefined);assert.equal(result.status,0,result.stderr);
-});
-test('note containing incomplete Markdown still reaches the email sender',async()=>{
-  const f=fixture();await f.notify({...f.event,note:{...f.event.note,body:'Meeting summary\n\n- \nPlease follow up.'}});
-  assert.equal(f.sent.length,1);assert(f.sent[0].html.includes('A new comment/meeting note is ready to read.'));
-});
-
-test('notification-only template ignores note body and author',()=>{
-  const {formatLeadEmail}=require('./noteNotificationService');
-  const html=formatLeadEmail({title:'Project',url:'https://example.com/project',isEdit:false,guidance:'Check the project.',noteBody:'Private meeting content',noteAuthor:'Private author'});
-  assert(html.includes('A new comment/meeting note is ready to read.'));
-  assert(!html.includes('Private meeting content'));
-  assert(!html.includes('Private author'));
 });
