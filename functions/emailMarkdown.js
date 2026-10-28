@@ -20,7 +20,7 @@ function emailMarkdown(value) {
   const lines=String(value || '').trim().split(/\r?\n/);
   const blocks=[];
   let i=0;
-  const isList=line=>/^\s*(?:[-*+]\s+|\d+\.\s+)/.test(line);
+  const isList=line=>/^\s*(?:[-*+]\s+|\d+\.\s+).+$/.test(line);
   while(i<lines.length) {
     if(!lines[i].trim()){i++;continue;}
     const heading=/^(#{1,3})\s+(.+)$/.exec(lines[i]);
@@ -33,7 +33,7 @@ function emailMarkdown(value) {
       const tag=numbered?'ol':'ul';blocks.push(`<${tag} style="padding-left:22px;margin:8px 0 12px;">${items.join('')}</${tag}>`);continue;
     }
     const paragraph=[];
-    while(i<lines.length&&lines[i].trim()&&!/^(#{1,3})\s+/.test(lines[i])&&!isList(lines[i]))paragraph.push(lines[i++].trim());
+    while(i<lines.length&&lines[i].trim()&&!/^(#{1,3})\s+(.+)$/.test(lines[i])&&!isList(lines[i]))paragraph.push(lines[i++].trim());
     blocks.push(`<p style="margin:0 0 12px;">${inline(paragraph.join(' '))}</p>`);
   }
   return blocks.join('');
