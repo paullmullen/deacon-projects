@@ -447,7 +447,7 @@ function Dashboard({ user }) {
           }
           setPreparingPrint(true);
           try {
-            const prepared = reviewNotes ? await Promise.all(chosen.map(async project => ({ ...project, printNotes: await loadProjectNotes(orgId, project.id) }))) : chosen;
+            const prepared = reviewNotes && canEdit ? await Promise.all(chosen.map(async project => ({ ...project, printNotes: await loadProjectNotes(orgId, project.id) }))) : chosen;
             setReviewOpen(false);
             setPrintProjects(prepared);
           } catch (e) { message.error(`Could not load notes: ${e.message}`); }
@@ -465,7 +465,7 @@ function Dashboard({ user }) {
             { label: "Active", value: "active" },
           ]}
         />
-        <Checkbox checked={reviewNotes} onChange={e => setReviewNotes(e.target.checked)} style={{ marginTop: 16 }}>Include comments / meeting notes</Checkbox>
+        {canEdit && <Checkbox checked={reviewNotes} onChange={e => setReviewNotes(e.target.checked)} style={{ marginTop: 16 }}>Include comments / meeting notes</Checkbox>}
         <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
           Closed projects are excluded. Each project starts on a new page.
           Confidential projects are marked individually. Briefs follow the saved dashboard order within each status. Search and title sorting do not change the package order.
@@ -482,7 +482,7 @@ function Dashboard({ user }) {
                   CONFIDENTIAL
                 </div>
               )}
-              <ProjectBrief project={project} notes={project.printNotes} orgName={org?.name || "Deacons"} />
+              <ProjectBrief project={project} notes={canEdit ? project.printNotes : null} orgName={org?.name || "Deacons"} />
             </div>
           ))}
         </div>,
@@ -755,6 +755,7 @@ function Project({ user }) {
   const { orgId, projectId } = useParams();
   const nav = useNavigate();
   const { role, org } = useOrg(orgId, user);
+  const canReadNotes = ["editor", "admin"].includes(role);
   const [project, setProject] = useState(undefined);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -1049,13 +1050,13 @@ function Project({ user }) {
         onOk={async () => {
           setPreparingPrint(true);
           try {
-            setPrintNotes(includeNotes && role ? await loadProjectNotes(orgId, projectId) : null);
+            setPrintNotes(includeNotes && canReadNotes ? await loadProjectNotes(orgId, projectId) : null);
             setPrintOpen(false); setPrintReady(true);
           } catch (e) { message.error(`Could not load notes: ${e.message}`); }
           finally { setPreparingPrint(false); }
         }}>
         <Typography.Paragraph>Print the project brief or save it as a PDF.</Typography.Paragraph>
-        {role && <Checkbox checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)}>Include comments / meeting notes</Checkbox>}
+        {canReadNotes && <Checkbox checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)}>Include comments / meeting notes</Checkbox>}
       </Modal>
       <Modal
         title={
@@ -1392,8 +1393,8 @@ function Project({ user }) {
         </Card>
       ) : (
         <>
-          <ProjectBrief project={project} notes={role ? printNotes : null} orgName={org?.name || "Deacons"} />
-          {role && (
+          <ProjectBrief project={project} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
+          {canReadNotes && (
             <Card style={{ marginTop: 20 }}>
               <ProjectNotes key={`${orgId}/${projectId}`} orgId={orgId} projectId={projectId} user={user} canAdd={canEdit} />
             </Card>

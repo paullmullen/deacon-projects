@@ -13,6 +13,7 @@ before(async () => {
     const db = context.firestore();
     await setDoc(doc(db, root, "members", "editor"), { role: "editor" });
     await setDoc(doc(db, root, "members", "viewer"), { role: "viewer" });
+    await setDoc(doc(db, root, "members", "admin"), { role: "admin" });
     for (const [id, status, archived] of [["second","active",false],["active","active",false],["closed","closed",false],["archived","proposed",true]]) {
       await setDoc(doc(db, root, "projects", id), {
         title: id, status, archived, visibility: "private", createdBy: "editor",
@@ -88,18 +89,23 @@ test("notes enforce authorship, timestamps and project permissions", async () =>
   await assertFails(setDoc(fresh("editor", "archived"), noteData()));
   await assertFails(setDoc(fresh("editor", "missing"), noteData()));
 });
-test("members can read the record including legacy notes, visitors cannot even on public projects", async () => {
+test("only editors and admins can read notes including legacy notes on public projects", async () => {
   await env.withSecurityRulesDisabled(async context => {
     await updateDoc(doc(context.firestore(), root, "projects", "active"), { visibility: "public" });
     await setDoc(doc(context.firestore(), root, "projects", "active", "notes", "current"), noteData());
   });
   await assertSucceeds(getDoc(project(null)));
-  await assertSucceeds(getDoc(note("viewer", "active", "current")));
+  await assertFails(getDoc(note("viewer", "active", "current")));
+  await assertSucceeds(getDoc(note("editor", "active", "current")));
+  await assertSucceeds(getDoc(note("admin", "active", "current")));
+  await assertFails(getDoc(note("viewer")));
   await assertFails(updateDoc(note("editor", "active", "current"), { body: "Overwrite old record" }));
   await assertFails(getDoc(note(null)));
   await assertFails(getDoc(note("outsider")));
   const notes = uid => collection(uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore(), root, "projects", "active", "notes");
-  await assertSucceeds(getDocs(notes("viewer")));
+  await assertFails(getDocs(notes("viewer")));
+  await assertSucceeds(getDocs(notes("editor")));
+  await assertSucceeds(getDocs(notes("admin")));
   await assertFails(getDocs(notes(null)));
   await assertFails(getDocs(notes("outsider")));
 });
