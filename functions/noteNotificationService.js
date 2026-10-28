@@ -26,24 +26,23 @@ function formatLeadEmail({title,url,editorName,isEdit,guidance}) {
 // Failed or interrupted attempts are recorded for manual investigation, not retried blindly.
 function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
   return async ({orgId, projectId, noteId, note, edit}) => {
-    const skip = reason => logger.info?.('Project lead email skipped', {orgId,projectId,noteId,reason});
-    if (!note || noteId === 'current' || !note.body?.trim()) return skip('empty-or-legacy-note');
+    if (!note || noteId === 'current' || !note.body?.trim()) return;
     const ref = db.doc(`organizations/${orgId}/projects/${projectId}`);
     const projectSnap = await ref.get();
-    if (!projectSnap.exists) return skip('project-missing');
+    if (!projectSnap.exists) return;
     const project = projectSnap.data();
     const uid = project.projectLeadUid;
-    if (edit && (uid !== edit.projectLeadUid || uid === edit.updatedBy)) return skip('lead-changed-or-self-edit');
-    if (typeof uid !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(uid)) return skip('no-linked-lead');
+    if (edit && (uid !== edit.projectLeadUid || uid === edit.updatedBy)) return;
+    if (typeof uid !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(uid)) return;
     const member = await db.doc(`organizations/${orgId}/members/${uid}`).get();
-    if (!member.exists || !eligibleLead(member.data())) return skip('lead-not-authorized');
+    if (!member.exists || !eligibleLead(member.data())) return;
     let lead;
     try { lead = await auth.getUser(uid); }
     catch (error) {
       if (error.code !== 'auth/user-not-found') throw error;
-      return skip('lead-account-missing');
+      return;
     }
-    if (lead.disabled || !lead.emailVerified || !lead.email) return skip('lead-account-ineligible');
+    if (lead.disabled || !lead.emailVerified || !lead.email) return;
     let editorName = 'an organization editor';
     if (edit) {
       const editor = await db.doc(`organizations/${orgId}/members/${edit.updatedBy}`).get();
@@ -62,8 +61,7 @@ function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
       tx.create(deliveryRef, {uid, status:'pending', createdAt:timestamp()});
       return true;
     });
-    if (!claimed) return skip('delivery-already-recorded');
-    logger.info?.('Project lead email attempt claimed', {orgId,projectId,noteId,uid,deliveryPath:deliveryRef.path});
+    if (!claimed) return;
     try {
       const settingsSnap = await db.doc(`organizations/${orgId}/settings/email`).get();
       const settings = settingsSnap.exists ? settingsSnap.data() : {};
@@ -77,7 +75,6 @@ function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
         html:formatLeadEmail({title,url,editorName,isEdit:!!edit,guidance}),
         replyTo:settings.replyToEmail || undefined, replyToName:settings.replyToName || undefined});
       await deliveryRef.update({status:'sent', sentAt:timestamp(), messageId:result?.messageId || null});
-      logger.info?.('Project lead email accepted by SMTP', {orgId,projectId,noteId,uid,messageId:result?.messageId || null});
     } catch (error) {
       logger.error('Project lead email failed', {orgId,projectId,noteId,uid,error:String(error)});
       await deliveryRef.update({status:'failed',failedAt:timestamp(),error:String(error).slice(0,500)});
