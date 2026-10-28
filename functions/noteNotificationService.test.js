@@ -30,11 +30,12 @@ test('lead eligibility excludes viewers, inactive members, and missing membershi
   assert(eligibleLead({role:'editor'}));assert(eligibleLead({role:'admin'}));
   for(const member of [null,{role:'viewer'},{role:'editor',status:'inactive'}])assert(!eligibleLead(member));
 });
-test('new notes notify the trusted lead email without including note contents',async()=>{
+test('new notes include note text in HTML while preserving the plain-text fallback',async()=>{
   const f=fixture();await f.notify(f.event);assert.equal(f.sent.length,1);
   assert.equal(f.sent[0].to,'trusted@example.org');
   assert(f.sent[0].text.includes('/org/elmbrook/projects/project1'));
-  assert(!JSON.stringify(f.sent[0]).includes('Confidential note text'));
+  assert(f.sent[0].html.includes('Confidential note text'));
+  assert(!f.sent[0].text.includes('Confidential note text'));
   assert(f.sent[0].html.includes('Test &lt;project&gt;'));
 });
 test('concurrent duplicate events make only one send attempt',async()=>{
@@ -91,4 +92,11 @@ test('notes explain lead subscription and retain the requested new-note wording'
   assert(f.sent[0].text.includes('You are receiving this message because you are the project leader'));
   assert(f.sent[0].text.includes('That project has a new comment/meeting note.'));
   assert(f.sent[0].text.includes('If you were not expecting updates'));
+});
+
+test('note insertion escapes markup and preserves line breaks',()=>{
+  const {formatLeadEmail}=require('./noteNotificationService');
+  const html=formatLeadEmail({title:'Project',url:'https://example.com',isEdit:false,guidance:'Check it now.',noteBody:'First line\n<script>bad</script> & details'});
+  assert(html.includes('First line<br>&lt;script&gt;bad&lt;/script&gt; &amp; details'));
+  assert(!html.includes('<script>'));
 });
