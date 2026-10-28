@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Input, Space, Spin, Typography, message } from "antd";
-import { addDoc, collection, getDocs, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase";
 import MarkdownText from "./MarkdownText";
 import { NotesContent } from "./ProjectNotesContent";
@@ -33,9 +33,12 @@ export default function ProjectNotes({ orgId, projectId, user, canAdd = true }) 
     if (busy || !canAdd || !body.trim()) return;
     setBusy(true);
     try {
+      const membership = await getDoc(doc(db, "organizations", orgId, "members", user.uid));
+      const editorName = [membership.data()?.displayName, user.displayName, user.email, "Organization editor"]
+        .find(value => typeof value === "string" && value.trim()).trim().slice(0, 320);
       await addDoc(notesCollection(orgId, projectId), {
         body: body.trim(), editorUid: user.uid,
-        editorName: (user.displayName || user.email || "Organization editor").slice(0, 320),
+        editorName,
         editedAt: serverTimestamp(),
       });
       setBody(""); setPreview(false);
