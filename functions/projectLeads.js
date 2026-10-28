@@ -1,11 +1,11 @@
 const {onCall,HttpsError} = require('firebase-functions/v2/https');
-const {onDocumentCreated} = require('firebase-functions/v2/firestore');
+const {onDocumentCreated,onDocumentUpdated} = require('firebase-functions/v2/firestore');
 const {getFirestore,FieldValue} = require('firebase-admin/firestore');
 const {getAuth} = require('firebase-admin/auth');
 const logger = require('firebase-functions/logger');
 const {sendEmail,emailSecrets} = require('./emailTransport');
 const {validOrg} = require('./membershipPolicy');
-const {eligibleLead,createNoteNotifier} = require('./noteNotificationService');
+const {eligibleLead,createNoteNotifier,createProjectEditNotifier} = require('./noteNotificationService');
 exports.listProjectLeads = onCall({region:'us-central1',invoker:'public'}, async request => {
   const orgId = request.data?.orgId;
   if (!request.auth) throw new HttpsError('unauthenticated','Sign in first.');
@@ -36,4 +36,14 @@ exports.notifyProjectNote = onDocumentCreated({
     timestamp:()=>FieldValue.serverTimestamp(),logger,
     appUrl:process.env.PROJECT_APP_URL || 'https://deaconprojects.web.app'});
   await notify({...event.params,note:event.data?.data()});
+});
+
+exports.notifyProjectEdited = onDocumentUpdated({
+  document:'organizations/{orgId}/projects/{projectId}',
+  region:'us-central1', secrets:emailSecrets, retry:true,
+}, async event => {
+  const notify = createProjectEditNotifier({db:getFirestore(),auth:getAuth(),sendEmail,
+    timestamp:()=>FieldValue.serverTimestamp(),logger,
+    appUrl:process.env.PROJECT_APP_URL || 'https://deaconprojects.web.app'});
+  await notify({...event.params,eventId:event.id,before:event.data?.before.data(),after:event.data?.after.data()});
 });
