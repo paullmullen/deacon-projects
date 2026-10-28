@@ -1,4 +1,5 @@
 import ProjectBrief from "./ProjectBrief";
+import ProjectLeadField from "./ProjectLeadField";
 import ProjectNotes, { loadProjectNotes } from "./ProjectNotes";
 import ProjectOrderHandle from "./ProjectOrderHandle";
 import { projectStatuses, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl, reorderProjects } from "./projectPresentation";
@@ -909,6 +910,7 @@ function Project({ user }) {
     }
     form.setFieldsValue({
       ...existing,
+      projectLeadUid: project.projectLeadUid || undefined,
       deliverableCategories: Array.isArray(project.deliverableCategories) ? project.deliverableCategories : [],
       visibility: project.visibility || "private",
       deaconRole: project.deaconRole || "leadership",
@@ -933,7 +935,7 @@ function Project({ user }) {
       const existing = (project.supportingDocuments || []).find(d => d.url === url);
       return { ...existing, title, description, url, addedBy: existing?.addedBy || user.displayName || user.email || user.uid, dateAdded: existing?.dateAdded || new Date().toISOString() };
     });
-    const presentation = { deaconRole: values.deaconRole || "leadership", supportingDocuments };
+    const presentation = { deaconRole: values.deaconRole || "leadership", supportingDocuments, projectLeadUid: values.projectLeadUid || "" };
     const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
     const assumptionsTable = cleanRows(values.assumptionsTable, [
       "assumption",
@@ -1290,7 +1292,9 @@ function Project({ user }) {
                     </div>
                   </div>
                 )}
-                {section.fields.filter(([key]) => key !== "expectedOutcome").map(([key, label, kind, limit]) => (
+                {section.fields.filter(([key]) => key !== "expectedOutcome").map(([key, label, kind, limit]) => key === "leadDeacon" ? (
+                  <ProjectLeadField key={key} orgId={orgId} project={project} form={form} />
+                ) : (
                   <Form.Item
                     key={key}
                     name={key}
