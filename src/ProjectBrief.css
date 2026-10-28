@@ -62,3 +62,7 @@
 
 .brief-note-entry{border-top:1px solid #cbd6dd;padding-top:12px;margin-top:16px}
 .brief-note-entry>.brief-notes-meta{break-after:avoid}
+
+.brief-attachment-download{border:0;padding:0;background:none;color:#245b85;text-decoration:underline;cursor:pointer;font:inherit;text-align:left;overflow-wrap:anywhere}
+.brief-attachment-print-title{display:none}
+@media print{.brief-attachment-download{display:none!important}.brief-attachment-print-title{display:block}}
