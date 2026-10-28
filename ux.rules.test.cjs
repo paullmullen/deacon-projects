@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const { test, before, after } = require("node:test");
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require("@firebase/rules-unit-testing");
-const { doc, setDoc, updateDoc, runTransaction, getDoc, getDocs, collection, deleteDoc, serverTimestamp } = require("firebase/firestore");
+const { doc, setDoc, updateDoc, runTransaction, getDoc, getDocs, collection, deleteDoc, deleteField, serverTimestamp } = require("firebase/firestore");
 let env;
 const root = "organizations/ux-test-org";
 before(async () => {
@@ -14,6 +14,7 @@ before(async () => {
     await setDoc(doc(db, root, "members", "editor"), { role: "editor" });
     await setDoc(doc(db, root, "members", "viewer"), { role: "viewer" });
     await setDoc(doc(db, root, "members", "admin"), { role: "admin" });
+    await setDoc(doc(db, root, "members", "inactiveEditor"), { role: "editor", status: "inactive" });
     for (const [id, status, archived] of [["second","active",false],["active","active",false],["closed","closed",false],["archived","proposed",true]]) {
       await setDoc(doc(db, root, "projects", id), {
         title: id, status, archived, visibility: "private", createdBy: "editor",
@@ -108,4 +109,29 @@ test("only editors and admins can read notes including legacy notes on public pr
   await assertSucceeds(getDocs(notes("admin")));
   await assertFails(getDocs(notes(null)));
   await assertFails(getDocs(notes("outsider")));
+});
+
+test("project lead assignments require an active editor or admin in the same organization", async () => {
+  await assertSucceeds(updateDoc(project("editor"), {projectLeadUid:"editor",leadDeacon:"Editor"}));
+  await assertSucceeds(updateDoc(project("editor"), {projectLeadUid:"admin",leadDeacon:"Administrator"}));
+  for (const uid of ["viewer", "inactiveEditor", "outsider", "bad/path"]) {
+    await assertFails(updateDoc(project("editor"), {projectLeadUid:uid}));
+  }
+  await assertFails(updateDoc(project("viewer"), {projectLeadUid:"editor"}));
+  await assertFails(updateDoc(project("inactiveEditor"), {projectLeadUid:"editor"}));
+  await assertFails(getDoc(note("inactiveEditor")));
+  await assertSucceeds(updateDoc(project("editor"), {projectLeadUid:"",leadDeacon:""}));
+});
+
+test("edit attribution cannot be spoofed or removed once recorded", async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), root, "projects", "audit"), {title:"Audit project",status:"active",visibility:"private"});
+  });
+  const audit = uid => project(uid,"audit");
+  await assertFails(updateDoc(audit("editor"), {title:"Forged",updatedBy:"admin",updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(audit("editor"), {title:"Stale timestamp",updatedBy:"editor",updatedAt:new Date(0)}));
+  await assertSucceeds(updateDoc(audit("editor"), {title:"Real edit",updatedBy:"editor",updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(audit("admin"), {title:"Reuse old actor",updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(audit("editor"), {updatedBy:deleteField(),updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(audit("admin"), {title:"Admin edit",updatedBy:"admin",updatedAt:serverTimestamp()}));
 });

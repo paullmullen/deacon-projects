@@ -1,4 +1,5 @@
 import ProjectBrief from "./ProjectBrief";
+import ProjectLeadField from "./ProjectLeadField";
 import ProjectNotes, { loadProjectNotes } from "./ProjectNotes";
 import ProjectOrderHandle from "./ProjectOrderHandle";
 import { projectStatuses, compareProjects, reviewPackageProjects, isRepresentationOnly, safeDocumentUrl, reorderProjects } from "./projectPresentation";
@@ -293,7 +294,7 @@ function Dashboard({ user }) {
           }
         });
         reordered.forEach((p, index) => transaction.update(doc(db, "organizations", orgId, "projects", p.id), {
-          priority: index + 1, updatedAt: serverTimestamp(),
+          priority: index + 1, updatedAt: serverTimestamp(), updatedBy: user.uid,
         }));
       });
       const priorities = new Map(reordered.map((p, i) => [p.id, i + 1]));
@@ -589,7 +590,7 @@ function NewDraft({ user }) {
           visibility: "private",
           createdBy: user.uid,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(), updatedBy: user.uid,
         },
       );
       nav(`/org/${orgId}/projects/${d.id}`);
@@ -844,7 +845,7 @@ function Project({ user }) {
       if (action === "archive" && project.status !== "proposed")
         throw new Error("Only proposed projects can be archived.");
       const eventRef = doc(collection(projectRef, "history"));
-      const patch = { updatedAt: serverTimestamp(), lastEventId: eventRef.id };
+      const patch = { updatedAt: serverTimestamp(), updatedBy: user.uid, lastEventId: eventRef.id };
       if (target) patch.status = target[1];
       if (action === "archive") patch.archived = true;
       if (action === "close") {
@@ -909,6 +910,7 @@ function Project({ user }) {
     }
     form.setFieldsValue({
       ...existing,
+      projectLeadUid: project.projectLeadUid || undefined,
       deliverableCategories: Array.isArray(project.deliverableCategories) ? project.deliverableCategories : [],
       visibility: project.visibility || "private",
       deaconRole: project.deaconRole || "leadership",
@@ -933,7 +935,7 @@ function Project({ user }) {
       const existing = (project.supportingDocuments || []).find(d => d.url === url);
       return { ...existing, title, description, url, addedBy: existing?.addedBy || user.displayName || user.email || user.uid, dateAdded: existing?.dateAdded || new Date().toISOString() };
     });
-    const presentation = { deaconRole: values.deaconRole || "leadership", supportingDocuments };
+    const presentation = { deaconRole: values.deaconRole || "leadership", supportingDocuments, projectLeadUid: values.projectLeadUid || "" };
     const selectedDeliverables = (values.deliverableCategories || []).filter((category) => deliverableCategories.includes(category));
     const assumptionsTable = cleanRows(values.assumptionsTable, [
       "assumption",
@@ -971,7 +973,7 @@ function Project({ user }) {
         ...legacyDeliverables,
         ...progressStamp,
         visibility: values.visibility,
-        updatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(), updatedBy: user.uid,
       });
       setProject((p) => ({
         ...p,
@@ -1290,7 +1292,9 @@ function Project({ user }) {
                     </div>
                   </div>
                 )}
-                {section.fields.filter(([key]) => key !== "expectedOutcome").map(([key, label, kind, limit]) => (
+                {section.fields.filter(([key]) => key !== "expectedOutcome").map(([key, label, kind, limit]) => key === "leadDeacon" ? (
+                  <ProjectLeadField key={key} orgId={orgId} project={project} form={form} />
+                ) : (
                   <Form.Item
                     key={key}
                     name={key}
