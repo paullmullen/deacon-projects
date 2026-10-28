@@ -118,7 +118,7 @@ function BriefTable({ heading, columns, rows }) {
     </section>
   );
 }
-export default function ProjectBrief({ project, notes = null, orgName = "Deacons" }) {
+export default function ProjectBrief({ project, notes = null, attachments = [], onDownloadAttachment, orgName = "Deacons" }) {
   const participationOnly = isRepresentationOnly(project);
   const updated =
     project.updatedAt?.toDate?.()?.toLocaleDateString("en-US", {
@@ -288,6 +288,16 @@ export default function ProjectBrief({ project, notes = null, orgName = "Deacons
           })}
         </section>
       )}
+      {attachments.length > 0 && <section className="brief-block brief-documents">
+        <h2>Attached files</h2>
+        {attachments.map(file=><div key={file.id} className="brief-document">
+          {onDownloadAttachment ? <button type="button" className="brief-attachment-download" onClick={()=>onDownloadAttachment(file)}>{file.title || file.name}</button> : <strong>{file.title || file.name}</strong>}
+          {onDownloadAttachment && <strong className="brief-attachment-print-title">{file.title || file.name}</strong>}
+          <div>{file.name}</div>
+          {file.description && <p>{file.description}</p>}
+        </div>)}
+        <p style={{fontSize:10}}>Download attached files from this project online.</p>
+      </section>}
       {project.links?.trim() && <Block heading="Other supporting links" value={project.links} />}
       </>}
       {notes && <div className="brief-print-notes"><NotesContent notes={notes} /></div>}
