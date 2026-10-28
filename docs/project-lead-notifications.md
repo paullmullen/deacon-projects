@@ -6,7 +6,7 @@
 - Existing free-text lead names remain intact. Open Edit brief, choose the authorized lead account, and save to enable notifications. No guessed email addresses or name-to-account matching.
 - Clearing a selected lead removes the account link and display name. An unchanged legacy name remains unlinked until someone explicitly selects an account.
 - Project content edits by another person email the linked lead and identify the editor by their organization display name (Auth name fallback). Edits by the lead, unchanged saves and priority-only reordering do not send edit emails. The project-update trigger ignores metadata-only changes.
-- Each new meeting note emails the linked project lead, including when the lead authored it. The email identifies the project and links to its notes; it includes the full note with lightweight Markdown formatting and author attribution in the highlighted panel. Existing notes are not announced retroactively.
+- Each new meeting note emails the linked project lead, including when the lead authored it. The email identifies the project and links to its notes; it announces a new note and links to the project without including note contents. Existing notes are not announced retroactively.
 - Membership and account eligibility are checked at notification time. Unlinked, inactive, viewer, disabled, unverified, and missing-account leads do not receive mail.
 - The callable directory requires active editor/admin privileges. Firestore validates new lead assignments against organization membership. Notes remain visible only to editors/admins, including when a project is closed.
 
@@ -44,4 +44,4 @@ The app records `updatedBy` (the authenticated UID) and a server `updatedAt` on 
 
 Edit email: "You are receiving this message because you are the project leader for [linked project]. That project was just edited by [editor]. If you were not expecting updates to this project, you may want to check it now."
 
-Note email uses the same introduction and closing, with "That project has a new comment/meeting note." Note emails include the full note text in HTML and plain-text versions. HTML, executable links and other raw markup are escaped or omitted from formatting.
+Note email uses the same introduction and closing, with "That project has a new comment/meeting note." Note contents are excluded from both HTML and plain-text email versions. The styled notification-only layout is restored while delivery filtering is investigated.
