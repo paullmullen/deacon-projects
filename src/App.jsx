@@ -1131,7 +1131,14 @@ function Project({ user }) {
         {project.archived && <Tag bordered={false}>Archived</Tag>}
       </Space>
       {editing ? (
-        <Card title="Edit project brief">
+        <Card title={
+          <div style={{ whiteSpace: "normal", padding: "12px 0" }}>
+            <div style={{ fontSize: 12, color: "#53697a", marginBottom: 4 }}>Edit project brief</div>
+            <Typography.Title level={3} style={{ margin: 0, overflowWrap: "anywhere" }}>
+              {project.title || "Untitled project"}
+            </Typography.Title>
+          </div>
+        }>
           <Form
             form={form}
             layout="vertical"
