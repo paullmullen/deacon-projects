@@ -2,7 +2,7 @@
 
 ## Notify the project lead when a comment / meeting note is added
 
-Requested October 27, 2026. Backlog only; not part of the current notes feature.
+Requested October 27, 2026. Implemented on `feature/project-lead-notifications`, pending review/deployment. See [Project leads and note notifications](project-lead-notifications.md) for behavior, validation and deployment.
 
 - Send an email to the project's lead when a new comment / meeting note is saved.
 - Prerequisite: formalize the project lead as a selection from authorized organization users, rather than relying on a free-text name. Store the selected user's stable UID and resolve their email from the trusted user directory.
