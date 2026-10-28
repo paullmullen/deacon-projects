@@ -1,11 +1,12 @@
 'use strict';
 const {isDeepStrictEqual} = require('node:util');
 const {createHash} = require('node:crypto');
+const {emailMarkdown} = require('./emailMarkdown');
 const eligibleLead = member => !!member && member.status !== 'inactive' && ['editor', 'admin'].includes(member.role);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function formatLeadEmail({title,url,editorName,isEdit,guidance}) {
+function formatLeadEmail({title,url,editorName,isEdit,guidance,noteBody,noteAuthor}) {
   const heading = isEdit ? 'Your project has been updated' : 'A new meeting note was added';
-  const summary = isEdit ? `Edited by <strong>${escapeHtml(editorName)}</strong>` : 'A new comment/meeting note is ready to read.';
+  const summary = isEdit ? `Edited by <strong>${escapeHtml(editorName)}</strong>` : `${noteAuthor ? `<p style="margin:0 0 12px;font-size:13px;color:#53697a;">Added by ${escapeHtml(noteAuthor)}</p>` : ''}${emailMarkdown(noteBody)}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
 <body style="margin:0;padding:0;background-color:#eef2f5;color:#253540;font-family:Arial,Helvetica,sans-serif;">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${escapeHtml(heading)}: ${escapeHtml(title)}</div>
@@ -14,7 +15,7 @@ function formatLeadEmail({title,url,editorName,isEdit,guidance}) {
 <tr><td style="padding:22px 28px;background-color:#244e67;"><p style="margin:0;font-size:13px;font-weight:bold;letter-spacing:1.5px;color:#ffffff;">ELMBROOK DEACONS</p><p style="margin:7px 0 0;font-size:11px;letter-spacing:1px;color:#d7e5ed;">PROJECT LEAD NOTIFICATION</p></td></tr>
 <tr><td style="padding:28px 28px 12px;"><h1 style="margin:0 0 14px;font-size:26px;line-height:1.25;color:#253540;">${heading}</h1><p style="margin:0;font-size:20px;font-weight:bold;line-height:1.4;"><a href="${escapeHtml(url)}" style="color:#245b85;text-decoration:underline;">${escapeHtml(title)}</a></p></td></tr>
 <tr><td style="padding:8px 28px 20px;">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#edf4f8;border-left:4px solid #477b9a;"><tr><td style="padding:16px 18px;"><p style="margin:0 0 7px;font-size:11px;letter-spacing:1px;font-weight:bold;color:#53697a;">${isEdit ? 'PROJECT BRIEF UPDATED' : 'NEW COMMENT / MEETING NOTE'}</p><p style="margin:0;font-size:16px;line-height:1.5;color:#253540;">${summary}</p></td></tr></table>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#edf4f8;border-left:4px solid #477b9a;"><tr><td style="padding:16px 18px;"><p style="margin:0 0 7px;font-size:11px;letter-spacing:1px;font-weight:bold;color:#53697a;">${isEdit ? 'PROJECT BRIEF UPDATED' : 'NEW COMMENT / MEETING NOTE'}</p><div style="margin:0;font-size:16px;line-height:1.5;color:#253540;overflow-wrap:anywhere;word-break:break-word;">${summary}</div></td></tr></table>
 </td></tr>
 <tr><td style="padding:0 28px 24px;"><p style="margin:0;font-size:15px;line-height:1.6;color:#53697a;">${escapeHtml(guidance)}</p></td></tr>
 <tr><td style="padding:0 28px 28px;"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" bgcolor="#245b85" style="background-color:#245b85;border:1px solid #245b85;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 24px;color:#ffffff;font-size:15px;line-height:1.2;font-weight:bold;text-decoration:none;">View project &rarr;</a></td></tr></table></td></tr>
@@ -71,8 +72,8 @@ function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
       const guidance = 'If you were not expecting updates to this project, you may want to check it now.';
       const result = await sendEmail({to:lead.email,
         subject:`DeaconProjects: ${edit ? 'project updated' : 'new meeting note'} — ${title}`,
-        text:`You are receiving this message because you are the project leader for ${title}.\n\n${update}\n\n${guidance}\n\nView project: ${url}\n`,
-        html:formatLeadEmail({title,url,editorName,isEdit:!!edit,guidance}),
+        text:`You are receiving this message because you are the project leader for ${title}.\n\n${update}${!edit ? `\n\n${note.body}` : ''}\n\n${guidance}\n\nView project: ${url}\n`,
+        html:formatLeadEmail({title,url,editorName,isEdit:!!edit,guidance,noteBody:note.body,noteAuthor:note.editorName}),
         replyTo:settings.replyToEmail || undefined, replyToName:settings.replyToName || undefined});
       await deliveryRef.update({status:'sent', sentAt:timestamp(), messageId:result?.messageId || null});
     } catch (error) {
