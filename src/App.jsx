@@ -1,4 +1,5 @@
 import ProjectBrief from "./ProjectBrief";
+import ProjectAttachments, { downloadAttachment, loadProjectAttachments, useProjectAttachments } from "./ProjectAttachments";
 import ProjectLeadField from "./ProjectLeadField";
 import ProjectNotes, { loadProjectNotes } from "./ProjectNotes";
 import ProjectOrderHandle from "./ProjectOrderHandle";
@@ -448,7 +449,10 @@ function Dashboard({ user }) {
           }
           setPreparingPrint(true);
           try {
-            const prepared = reviewNotes && canEdit ? await Promise.all(chosen.map(async project => ({ ...project, printNotes: await loadProjectNotes(orgId, project.id) }))) : chosen;
+            const prepared = await Promise.all(chosen.map(async project => ({
+              ...project, printAttachments: await loadProjectAttachments(orgId,project.id),
+              printNotes: reviewNotes && canEdit ? await loadProjectNotes(orgId,project.id) : null,
+            })));
             setReviewOpen(false);
             setPrintProjects(prepared);
           } catch (e) { message.error(`Could not load notes: ${e.message}`); }
@@ -483,7 +487,7 @@ function Dashboard({ user }) {
                   CONFIDENTIAL
                 </div>
               )}
-              <ProjectBrief project={project} notes={canEdit ? project.printNotes : null} orgName={org?.name || "Deacons"} />
+              <ProjectBrief project={project} attachments={project.printAttachments} notes={canEdit ? project.printNotes : null} orgName={org?.name || "Deacons"} />
             </div>
           ))}
         </div>,
@@ -635,7 +639,7 @@ const sectionGuidance = {
   "Schedule and outcomes": "What should the team deliver, and when?",
   "Assumptions and barriers": "What must be true, and what might prevent success?",
   "Progress and decisions": "What has happened, and what needs to happen next?",
-  "Supporting documents": "Link to supporting files in OneDrive, SharePoint, or another HTTPS location.",
+  "Supporting documents": "Attach files to this project or link to documents hosted elsewhere.",
 };
 const briefSections = [
   {
@@ -758,6 +762,7 @@ function Project({ user }) {
   const { role, org } = useOrg(orgId, user);
   const canReadNotes = ["editor", "admin"].includes(role);
   const [project, setProject] = useState(undefined);
+  const attachmentState = useProjectAttachments(orgId, projectId, !!project, user?.uid);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
@@ -1052,6 +1057,7 @@ function Project({ user }) {
         onOk={async () => {
           setPreparingPrint(true);
           try {
+            if (attachmentState.loading || attachmentState.error) throw new Error("Wait for project attachments to load before printing.");
             setPrintNotes(includeNotes && canReadNotes ? await loadProjectNotes(orgId, projectId) : null);
             setPrintOpen(false); setPrintReady(true);
           } catch (e) { message.error(`Could not load notes: ${e.message}`); }
@@ -1224,8 +1230,10 @@ function Project({ user }) {
                 {section.title === "Supporting documents" && (
                   <>
                     <Typography.Paragraph type="secondary">
-                      Links appear in the project brief and review package. Access to each file is controlled by its host.
+                      Uploaded files and links appear in the project brief and review package. Linked files use their host’s access settings.
                     </Typography.Paragraph>
+                    <ProjectAttachments orgId={orgId} projectId={projectId} user={user} canEdit={canEdit} state={attachmentState} />
+                    <Typography.Title level={5}>Document links</Typography.Title>
                     <Form.List name="supportingDocuments">
                       {(fields, { add, remove }) => (
                         <Space direction="vertical" style={{ width: "100%" }}>
@@ -1404,7 +1412,8 @@ function Project({ user }) {
         </Card>
       ) : (
         <>
-          <ProjectBrief project={project} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
+          <ProjectBrief project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
+          {attachmentState.error && <Alert type="error" message="Attachments could not be loaded" description={attachmentState.error} />}
           {canReadNotes && (
             <Card style={{ marginTop: 20 }}>
               <ProjectNotes key={`${orgId}/${projectId}`} orgId={orgId} projectId={projectId} user={user} canAdd={canEdit} />
