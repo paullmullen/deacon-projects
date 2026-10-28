@@ -294,7 +294,7 @@ function Dashboard({ user }) {
           }
         });
         reordered.forEach((p, index) => transaction.update(doc(db, "organizations", orgId, "projects", p.id), {
-          priority: index + 1, updatedAt: serverTimestamp(),
+          priority: index + 1, updatedAt: serverTimestamp(), updatedBy: user.uid,
         }));
       });
       const priorities = new Map(reordered.map((p, i) => [p.id, i + 1]));
@@ -590,7 +590,7 @@ function NewDraft({ user }) {
           visibility: "private",
           createdBy: user.uid,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(), updatedBy: user.uid,
         },
       );
       nav(`/org/${orgId}/projects/${d.id}`);
@@ -845,7 +845,7 @@ function Project({ user }) {
       if (action === "archive" && project.status !== "proposed")
         throw new Error("Only proposed projects can be archived.");
       const eventRef = doc(collection(projectRef, "history"));
-      const patch = { updatedAt: serverTimestamp(), lastEventId: eventRef.id };
+      const patch = { updatedAt: serverTimestamp(), updatedBy: user.uid, lastEventId: eventRef.id };
       if (target) patch.status = target[1];
       if (action === "archive") patch.archived = true;
       if (action === "close") {
@@ -973,7 +973,7 @@ function Project({ user }) {
         ...legacyDeliverables,
         ...progressStamp,
         visibility: values.visibility,
-        updatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(), updatedBy: user.uid,
       });
       setProject((p) => ({
         ...p,
