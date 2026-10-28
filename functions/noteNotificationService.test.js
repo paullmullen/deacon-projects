@@ -30,12 +30,12 @@ test('lead eligibility excludes viewers, inactive members, and missing membershi
   assert(eligibleLead({role:'editor'}));assert(eligibleLead({role:'admin'}));
   for(const member of [null,{role:'viewer'},{role:'editor',status:'inactive'}])assert(!eligibleLead(member));
 });
-test('new notes notify the trusted lead email and include the note contents',async()=>{
+test('new notes notify the trusted lead without exposing note contents',async()=>{
   const f=fixture();await f.notify(f.event);assert.equal(f.sent.length,1);
   assert.equal(f.sent[0].to,'trusted@example.org');
   assert(f.sent[0].text.includes('/org/elmbrook/projects/project1'));
   assert(!f.sent[0].text.includes('Confidential note text'));
-  assert(f.sent[0].html.includes('Confidential note text'));
+  assert(!f.sent[0].html.includes('Confidential note text'));
   assert(f.sent[0].html.includes('Test &lt;project&gt;'));
 });
 test('concurrent duplicate events make only one send attempt',async()=>{
@@ -113,13 +113,13 @@ test('unfinished Markdown markers cannot stall note emails',()=>{
 });
 test('note containing incomplete Markdown still reaches the email sender',async()=>{
   const f=fixture();await f.notify({...f.event,note:{...f.event.note,body:'Meeting summary\n\n- \nPlease follow up.'}});
-  assert.equal(f.sent.length,1);assert(f.sent[0].html.includes('Please follow up.'));
+  assert.equal(f.sent.length,1);assert(f.sent[0].html.includes('A new comment/meeting note is ready to read.'));
 });
 
-test('first delivery experiment adds only escaped note text and line breaks',()=>{
+test('notification-only template ignores note body and author',()=>{
   const {formatLeadEmail}=require('./noteNotificationService');
-  const html=formatLeadEmail({title:'Project',url:'https://example.com/project',isEdit:false,guidance:'Check the project.',noteBody:'**Decision**\n<unsafe> & details',noteAuthor:'Extra author'});
-  assert(html.includes('**Decision**<br>&lt;unsafe&gt; &amp; details'));
-  assert(!html.includes('<strong>Decision</strong>'));
-  assert(!html.includes('Extra author'));
+  const html=formatLeadEmail({title:'Project',url:'https://example.com/project',isEdit:false,guidance:'Check the project.',noteBody:'Private meeting content',noteAuthor:'Private author'});
+  assert(html.includes('A new comment/meeting note is ready to read.'));
+  assert(!html.includes('Private meeting content'));
+  assert(!html.includes('Private author'));
 });
