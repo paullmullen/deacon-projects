@@ -3,9 +3,9 @@ const {isDeepStrictEqual} = require('node:util');
 const {createHash} = require('node:crypto');
 const eligibleLead = member => !!member && member.status !== 'inactive' && ['editor', 'admin'].includes(member.role);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function formatLeadEmail({title,url,editorName,isEdit,guidance,noteBody}) {
+function formatLeadEmail({title,url,editorName,isEdit,guidance}) {
   const heading = isEdit ? 'Your project has been updated' : 'A new meeting note was added';
-  const summary = isEdit ? `Edited by <strong>${escapeHtml(editorName)}</strong>` : escapeHtml(noteBody || '').replace(/\r?\n/g, '<br>');
+  const summary = isEdit ? `Edited by <strong>${escapeHtml(editorName)}</strong>` : 'A new comment/meeting note is ready to read.';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
 <body style="margin:0;padding:0;background-color:#eef2f5;color:#253540;font-family:Arial,Helvetica,sans-serif;">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${escapeHtml(heading)}: ${escapeHtml(title)}</div>
@@ -74,7 +74,7 @@ function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
       const result = await sendEmail({to:lead.email,
         subject:`DeaconProjects: ${edit ? 'project updated' : 'new meeting note'} — ${title}`,
         text:`You are receiving this message because you are the project leader for ${title}.\n\n${update}\n\n${guidance}\n\nView project: ${url}\n`,
-        html:formatLeadEmail({title,url,editorName,isEdit:!!edit,guidance,noteBody:note.body,noteAuthor:note.editorName}),
+        html:formatLeadEmail({title,url,editorName,isEdit:!!edit,guidance}),
         replyTo:settings.replyToEmail || undefined, replyToName:settings.replyToName || undefined});
       await deliveryRef.update({status:'sent', sentAt:timestamp(), messageId:result?.messageId || null});
       logger.info?.('Project lead email accepted by SMTP', {orgId,projectId,noteId,uid,messageId:result?.messageId || null});
