@@ -3,6 +3,25 @@ const {isDeepStrictEqual} = require('node:util');
 const {createHash} = require('node:crypto');
 const eligibleLead = member => !!member && member.status !== 'inactive' && ['editor', 'admin'].includes(member.role);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function formatLeadEmail({title,url,editorName,isEdit,guidance}) {
+  const heading = isEdit ? 'Your project has been updated' : 'A new meeting note was added';
+  const summary = isEdit ? `Edited by <strong>${escapeHtml(editorName)}</strong>` : 'A new comment/meeting note is ready to read.';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#eef2f5;color:#253540;font-family:Arial,Helvetica,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${escapeHtml(heading)}: ${escapeHtml(title)}</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#eef2f5;"><tr><td align="center" style="padding:28px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dce4ea;">
+<tr><td style="padding:22px 28px;background-color:#244e67;"><p style="margin:0;font-size:13px;font-weight:bold;letter-spacing:1.5px;color:#ffffff;">ELMBROOK DEACONS</p><p style="margin:7px 0 0;font-size:11px;letter-spacing:1px;color:#d7e5ed;">PROJECT LEAD NOTIFICATION</p></td></tr>
+<tr><td style="padding:28px 28px 12px;"><h1 style="margin:0 0 14px;font-size:26px;line-height:1.25;color:#253540;">${heading}</h1><p style="margin:0;font-size:20px;font-weight:bold;line-height:1.4;"><a href="${escapeHtml(url)}" style="color:#245b85;text-decoration:underline;">${escapeHtml(title)}</a></p></td></tr>
+<tr><td style="padding:8px 28px 20px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#edf4f8;border-left:4px solid #477b9a;"><tr><td style="padding:16px 18px;"><p style="margin:0 0 7px;font-size:11px;letter-spacing:1px;font-weight:bold;color:#53697a;">${isEdit ? 'PROJECT BRIEF UPDATED' : 'NEW COMMENT / MEETING NOTE'}</p><p style="margin:0;font-size:16px;line-height:1.5;color:#253540;">${summary}</p></td></tr></table>
+</td></tr>
+<tr><td style="padding:0 28px 24px;"><p style="margin:0;font-size:15px;line-height:1.6;color:#53697a;">${escapeHtml(guidance)}</p></td></tr>
+<tr><td style="padding:0 28px 28px;"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" bgcolor="#245b85" style="background-color:#245b85;border:1px solid #245b85;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 24px;color:#ffffff;font-size:15px;line-height:1.2;font-weight:bold;text-decoration:none;">View project &rarr;</a></td></tr></table></td></tr>
+<tr><td style="padding:20px 28px;border-top:1px solid #e2e8ed;background-color:#f8fafb;"><p style="margin:0;font-size:12px;line-height:1.6;color:#637785;">You are receiving this message because you are the project leader for this project. Sign in to view its latest details and meeting notes.</p></td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 // Claim before SMTP: at most one send attempt per note, including redeliveries.
 // Failed or interrupted attempts are recorded for manual investigation, not retried blindly.
 function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
@@ -53,7 +72,7 @@ function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
       const result = await sendEmail({to:lead.email,
         subject:`DeaconProjects: ${edit ? 'project updated' : 'new meeting note'} — ${title}`,
         text:`You are receiving this message because you are the project leader for ${title}.\n\n${update}\n\n${guidance}\n\nView project: ${url}\n`,
-        html:`<!doctype html><html><body style="font-family:Arial,sans-serif;color:#17253b;background:#f3f4f6"><div style="max-width:600px;margin:24px auto;padding:28px;background:white;border-top:5px solid #245b85"><p>ELMBROOK DEACONS · PROJECT UPDATE</p><p>You are receiving this message because you are the project leader for <a href="${escapeHtml(url)}">${escapeHtml(title)}</a>.</p><p>${escapeHtml(update)}</p><p>${guidance}</p><p><a href="${escapeHtml(url)}">View project</a></p></div></body></html>`,
+        html:formatLeadEmail({title,url,editorName,isEdit:!!edit,guidance}),
         replyTo:settings.replyToEmail || undefined, replyToName:settings.replyToName || undefined});
       await deliveryRef.update({status:'sent', sentAt:timestamp(), messageId:result?.messageId || null});
     } catch (error) {
@@ -76,4 +95,4 @@ function createProjectEditNotifier(dependencies) {
     await notify({orgId,projectId,noteId:eventId,note:{body:'Project edit'},edit:after});
   };
 }
-module.exports = {eligibleLead, createNoteNotifier, createProjectEditNotifier};
+module.exports = {eligibleLead, createNoteNotifier, createProjectEditNotifier, formatLeadEmail};
