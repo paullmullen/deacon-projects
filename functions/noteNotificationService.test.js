@@ -102,3 +102,16 @@ test('email notes render lightweight Markdown and escape HTML and unsafe links',
   assert(!html.includes('href="javascript:'));assert(!html.includes('<img'));
   assert(html.includes('&lt;img'));
 });
+
+test('unfinished Markdown markers cannot stall note emails',()=>{
+  const {spawnSync}=require('node:child_process');
+  const inputs=['Before\n\n- \nAfter','Before\n\n1. \nAfter','Before\n\n### \nAfter','Before\n\n* \nAfter'];
+  // Run in a subprocess so a regression cannot hang the entire test runner.
+  const script=`const {emailMarkdown}=require('./emailMarkdown');const inputs=${JSON.stringify(inputs)};for(const input of inputs){const html=emailMarkdown(input);if(!html.includes('After'))throw Error('Note text lost');}`;
+  const result=spawnSync(process.execPath,['-e',script],{cwd:__dirname,timeout:3000,encoding:'utf8'});
+  assert.equal(result.error,undefined);assert.equal(result.status,0,result.stderr);
+});
+test('note containing incomplete Markdown still reaches the email sender',async()=>{
+  const f=fixture();await f.notify({...f.event,note:{...f.event.note,body:'Meeting summary\n\n- \nPlease follow up.'}});
+  assert.equal(f.sent.length,1);assert(f.sent[0].html.includes('Please follow up.'));
+});
