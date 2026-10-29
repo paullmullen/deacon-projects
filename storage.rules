@@ -18,7 +18,7 @@ service firebase.storage {
     }
     match /organizations/{orgId}/projects/{projectId}/attachments/{attachmentId}/file {
       allow get: if readable(orgId,projectId);
-      allow create: if request.auth != null && editable(orgId,projectId)
+      allow create: if resource == null && request.auth != null && editable(orgId,projectId)
         && request.resource.size > 0 && request.resource.size <= 26214400
         && request.resource.contentDisposition == 'attachment'
         && request.resource.contentType in [
