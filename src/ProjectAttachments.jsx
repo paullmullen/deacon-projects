@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Input, List, Popconfirm, Progress, Space, Typography, message } from 'antd';
+import { Alert, Button, Input, List, Popconfirm, Progress, Space, Typography, App as AntApp } from 'antd';
 import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getBlob, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from './firebase';
@@ -21,7 +21,7 @@ export function useProjectAttachments(orgId,projectId,enabled,uid) {
   },[orgId,projectId,enabled,uid]);
   return state;
 }
-export async function downloadAttachment(orgId,projectId,file) {
+export async function downloadAttachment(orgId,projectId,file,message) {
   try {
     // Derive the path from trusted route IDs rather than a stored URL. No permanent download tokens are exposed.
     const blob = await getBlob(ref(storage,attachmentPath(orgId,projectId,file.id)),MAX_ATTACHMENT_BYTES);
@@ -48,6 +48,7 @@ async function changeAttachment(orgId,projectId,id,ready,uid) {
   });
 }
 export default function ProjectAttachments({orgId,projectId,user,canEdit,state}) {
+  const { message } = AntApp.useApp();
   const [file,setFile]=useState(null);
   const [title,setTitle]=useState('');
   const [description,setDescription]=useState('');
@@ -95,7 +96,7 @@ export default function ProjectAttachments({orgId,projectId,user,canEdit,state})
     <Typography.Paragraph type="secondary">Files use the project’s visibility. Public project files are public once the project is Proposed, Active, or Closed. Uploads save separately from the brief.</Typography.Paragraph>
     {state.error ? <Alert type="error" message="Attachments could not be loaded" description={state.error}/> : <List loading={state.loading} dataSource={state.files.filter(file=>file.status==='ready'||canEdit)}
       locale={{emptyText:'No files attached yet'}} renderItem={entry=><List.Item style={{flexWrap:"wrap"}} actions={[
-        ...(entry.status==='ready'?[<Button key="download" onClick={()=>downloadAttachment(orgId,projectId,entry)}>Download</Button>]:[]),
+        ...(entry.status==='ready'?[<Button key="download" onClick={()=>downloadAttachment(orgId,projectId,entry,message)}>Download</Button>]:[]),
         ...(canEdit?[<Popconfirm key="remove" title="Remove this attachment?" description="This removes the uploaded file from the project." onConfirm={()=>remove(entry.id)}><Button danger disabled={busy} loading={removing===entry.id}>Remove</Button></Popconfirm>]:[]),
       ]}>
       <List.Item.Meta style={{minWidth:180}} title={<span style={{overflowWrap:"anywhere"}}>{entry.title}</span>} description={<><span style={{overflowWrap:"anywhere"}}>{entry.name} · {attachmentSize(entry.size)}</span>{entry.description&&<div>{entry.description}</div>}{entry.status!=='ready'&&<div>Upload incomplete. Remove this entry and try again if no upload is in progress.</div>}</>}/>
