@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test functions/membershipPolicy.test.js functions/noteNotificationService.test.js src/projectPresentation.test.js",
-    "test:rules": "node --test lifecycle.rules.test.cjs ux.rules.test.cjs"
+    "test": "node --test functions/membershipPolicy.test.js functions/noteNotificationService.test.js src/projectPresentation.test.js src/attachmentPolicy.test.js",
+    "test:rules": "node --test lifecycle.rules.test.cjs ux.rules.test.cjs",
+    "test:attachments": "node --test attachments.rules.test.cjs"
   },
   "dependencies": {
     "@ant-design/v5-patch-for-react-19": "^1.0.3",

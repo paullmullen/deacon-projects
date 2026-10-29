@@ -69,9 +69,10 @@ service cloud.firestore {
           && resource.data.get('archived', false) == false
           && validTitle(request.resource.data)
           && validDashboardFields(request.resource.data)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','visibility','updatedAt','progressEditedAt','assumptionsTable','nextStepsTable','deliverableCategories','supportingDocuments','priority','deaconRole','projectLeadUid','updatedBy'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','visibility','updatedAt','progressEditedAt','assumptionsTable','nextStepsTable','deliverableCategories','supportingDocuments','priority','deaconRole','projectLeadUid','updatedBy','attachmentsEditedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['projectLeadUid']) || validProjectLead(orgId, request.resource.data))
           && request.resource.data.visibility in ['private', 'public']
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['attachmentsEditedAt']) || request.resource.data.attachmentsEditedAt == request.time)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressEditedAt']) || request.resource.data.progressEditedAt == request.time)
           && (!request.resource.data.keys().hasAny(['shortDescription']) || (request.resource.data.shortDescription is string && request.resource.data.shortDescription.size() <= 500))
           && (!request.resource.data.keys().hasAny(['longDescription']) || (request.resource.data.longDescription is string && request.resource.data.longDescription.size() <= 4000))
@@ -145,6 +146,41 @@ service cloud.firestore {
           );
         // Only drafts can be permanently deleted.
         allow delete: if canEdit(orgId) && resource.data.status == 'draft';
+        match /attachments/{attachmentId} {
+          function parentData() { return get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data; }
+          function readable() {
+            let project = parentData();
+            return (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status','active') != 'inactive')
+              || (project.visibility == 'public' && project.status in ['proposed','active','closed']);
+          }
+          function editable() {
+            return canEdit(orgId) && parentData().status != 'closed' && parentData().get('archived',false) == false;
+          }
+          function stamped() {
+            let project = getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data;
+            return project.attachmentsEditedAt == request.time && project.updatedAt == request.time && project.updatedBy == request.auth.uid;
+          }
+          allow get, list: if readable();
+          allow create: if editable()
+            && request.resource.data.keys().hasAll(['name','title','description','size','contentType','uploadedBy','uploadedByName','createdAt','status'])
+            && request.resource.data.keys().hasOnly(['name','title','description','size','contentType','uploadedBy','uploadedByName','createdAt','status'])
+            && request.resource.data.status == 'uploading'
+            && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 240
+            && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200
+            && request.resource.data.description is string && request.resource.data.description.size() <= 500
+            && request.resource.data.size is int && request.resource.data.size > 0 && request.resource.data.size <= 26214400
+            && request.resource.data.contentType in ['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/plain','text/csv','image/png','image/jpeg']
+            && request.resource.data.uploadedBy == request.auth.uid
+            && request.resource.data.uploadedByName is string && request.resource.data.uploadedByName.size() > 0 && request.resource.data.uploadedByName.size() <= 320
+            && request.resource.data.createdAt == request.time;
+          allow update: if editable() && stamped() && resource.data.uploadedBy == request.auth.uid
+            && resource.data.status == 'uploading' && request.resource.data.status == 'ready'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+          allow delete: if canEdit(orgId) && (
+            (resource.data.status == 'uploading' && resource.data.uploadedBy == request.auth.uid)
+            || (editable() && stamped())
+          );
+        }
         // Notes are visible only to editors/admins, separate from public briefs.
         match /notes/{noteId} {
           allow get, list: if canEdit(orgId)

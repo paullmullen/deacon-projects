@@ -6,3 +6,5 @@ Object.assign(exports,require('./membershipAdmin'));
 Object.assign(exports,require('./authEmails'));
 
 Object.assign(exports,require('./projectLeads'));
+
+Object.assign(exports,require('./attachmentCleanup'));
