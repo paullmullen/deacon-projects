@@ -1182,7 +1182,7 @@ function Project({ user }) {
             {briefSections.map((section, index) => (
               <details
                 key={section.title}
-                defaultOpen={index === 0}
+                open={index === 0}
                 style={{
                   border: "1px solid #d9d9d9",
                   borderRadius: 8,
