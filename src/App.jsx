@@ -1,3 +1,4 @@
+import { useRecentComments, RecentCommentIndicator, RecentCommentsStatistic } from "./RecentComments";
 import ProjectBrief from "./ProjectBrief";
 import ProjectAttachments, { downloadAttachment, loadProjectAttachments, useProjectAttachments } from "./ProjectAttachments";
 import ProjectLeadField from "./ProjectLeadField";
@@ -246,6 +247,8 @@ function Dashboard({ user }) {
     };
   }, [orgId, role, loading]);
 
+  const comments = useRecentComments(orgId, items, role, user?.uid);
+
   if (loading) return <Spin />;
   if (!org)
     return (
@@ -337,6 +340,7 @@ function Dashboard({ user }) {
             {p.shortDescription}
           </Typography.Paragraph>
         )}
+        {canEdit && <RecentCommentIndicator orgId={orgId} projectId={p.id} notes={comments.notes.filter(note => note.projectId === p.id)} />}
         <Typography.Text type="secondary">
           Lead: {p.leadDeacon || "Not assigned"}
         </Typography.Text>
@@ -369,12 +373,13 @@ function Dashboard({ user }) {
         {statuses
           .filter((status) => isMember || status !== "draft")
           .map((status) => (
-            <Col xs={12} sm={6} key={status}>
+            <Col xs={12} sm={6} lg={{ flex: "1 1 0" }} key={status}>
               <Card size="small">
                 <Statistic title={statusLabel(status)} value={count(status)} />
               </Card>
             </Col>
           ))}
+        {canEdit && <RecentCommentsStatistic orgId={orgId} projects={accessible} state={comments} fetching={fetching} />}
       </Row>
       {isMember && orgId === "elmbrook" && (
         <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
@@ -765,6 +770,12 @@ function Project({ user }) {
   const { role, org } = useOrg(orgId, user);
   const canReadNotes = ["editor", "admin"].includes(role);
   const [project, setProject] = useState(undefined);
+  useEffect(() => {
+    if (canReadNotes && window.location.hash === "#comments") {
+      const frame = window.requestAnimationFrame(() => document.getElementById("comments")?.scrollIntoView());
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [canReadNotes, project]);
   const attachmentState = useProjectAttachments(orgId, projectId, !!project, user?.uid);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -1418,7 +1429,7 @@ function Project({ user }) {
           <ProjectBrief project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file,message)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
           {attachmentState.error && <Alert type="error" message="Attachments could not be loaded" description={attachmentState.error} />}
           {canReadNotes && (
-            <Card style={{ marginTop: 20 }}>
+            <Card id="comments" style={{ marginTop: 20, scrollMarginTop: 24 }}>
               <ProjectNotes key={`${orgId}/${projectId}`} orgId={orgId} projectId={projectId} user={user} canAdd={canEdit} />
             </Card>
           )}
