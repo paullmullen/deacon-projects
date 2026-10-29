@@ -26,7 +26,7 @@ import {
   Tag,
   Typography,
   Modal,
-  message,
+  App as AntApp,
   Tooltip,
 } from "antd";
 import {
@@ -186,6 +186,7 @@ function Home() {
   );
 }
 function Dashboard({ user }) {
+  const { message } = AntApp.useApp();
   const { orgId } = useParams();
   const { loading, org, role } = useOrg(orgId, user);
   const [items, setItems] = useState([]);
@@ -575,6 +576,7 @@ function Dashboard({ user }) {
 }
 
 function NewDraft({ user }) {
+  const { message } = AntApp.useApp();
   const { orgId } = useParams();
   const { loading, role } = useOrg(orgId, user);
   const nav = useNavigate();
@@ -757,6 +759,7 @@ function RowEditor({ name, columns }) {
 }
 const briefKeys = briefSections.flatMap((s) => s.fields.map((f) => f[0]));
 function Project({ user }) {
+  const { message } = AntApp.useApp();
   const { orgId, projectId } = useParams();
   const nav = useNavigate();
   const { role, org } = useOrg(orgId, user);
@@ -1412,7 +1415,7 @@ function Project({ user }) {
         </Card>
       ) : (
         <>
-          <ProjectBrief project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
+          <ProjectBrief project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file,message)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
           {attachmentState.error && <Alert type="error" message="Attachments could not be loaded" description={attachmentState.error} />}
           {canReadNotes && (
             <Card style={{ marginTop: 20 }}>
