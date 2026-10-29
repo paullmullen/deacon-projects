@@ -1,8 +1,9 @@
 const fs=require('node:fs');
+const assert=require('node:assert/strict');
 const {test,before,after}=require('node:test');
 const {initializeTestEnvironment,assertSucceeds,assertFails}=require('@firebase/rules-unit-testing');
 const {doc,setDoc,updateDoc,deleteDoc,getDoc,getDocs,collection,writeBatch,serverTimestamp}=require('firebase/firestore');
-const {ref,uploadBytes,getBytes}=require('firebase/storage');
+const {ref,uploadBytes,getBytes,updateMetadata,deleteObject}=require('firebase/storage');
 let env;
 const root='organizations/attachment-org';
 before(async()=>{
@@ -10,6 +11,8 @@ before(async()=>{
     firestore:{host:'127.0.0.1',port:8080,rules:fs.readFileSync('firestore.rules','utf8')},
     storage:{host:'127.0.0.1',port:9199,rules:fs.readFileSync('storage.rules','utf8')},
   });
+  await env.clearFirestore();
+  await env.clearStorage();
   await env.withSecurityRulesDisabled(async context=>{
     const db=context.firestore();
     for(const [uid,role,status]of [['editor','editor','active'],['viewer','viewer','active'],['inactive','editor','inactive']])await setDoc(doc(db,root,'members',uid),{role,status});
@@ -32,6 +35,9 @@ test('only active editors can stage files, and metadata is validated',async()=>{
 test('uploads enforce role, project scope, content type and object immutability',async()=>{
   await assertSucceeds(uploadBytes(objectRef('editor'),new Uint8Array([1,2,3,4]),{contentType:'application/pdf',contentDisposition:'attachment'}));
   await assertFails(uploadBytes(objectRef('editor'),new Uint8Array([5]),{contentType:'application/pdf',contentDisposition:'attachment'}));
+  assert.deepEqual([...new Uint8Array(await getBytes(objectRef('editor')))], [1,2,3,4]);
+  await assertFails(updateMetadata(objectRef('editor'),{contentType:'text/plain'}));
+  await assertFails(deleteObject(objectRef('editor')));
   await assertFails(uploadBytes(objectRef('viewer','private','viewer-upload'),new Uint8Array([1]),{contentType:'application/pdf',contentDisposition:'attachment'}));
   await assertFails(uploadBytes(objectRef('editor','closed','closed-upload'),new Uint8Array([1]),{contentType:'application/pdf',contentDisposition:'attachment'}));
   await assertFails(uploadBytes(objectRef('editor','private','html'),new Uint8Array([1]),{contentType:'text/html',contentDisposition:'attachment'}));
