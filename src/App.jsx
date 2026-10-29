@@ -1,4 +1,4 @@
-import { useRecentComments, RecentCommentIndicator, RecentCommentsStatistic } from "./RecentComments";
+import { useRecentComments, RecentCommentIndicator, RecentCommentsStatistic } from "./DashboardComments.jsx";
 import ProjectBrief from "./ProjectBrief";
 import ProjectAttachments, { downloadAttachment, loadProjectAttachments, useProjectAttachments } from "./ProjectAttachments";
 import ProjectLeadField from "./ProjectLeadField";

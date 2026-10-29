@@ -3,7 +3,7 @@ import { Alert, Button, Card, Col, Empty, List, Modal, Popover, Space, Spin, Sta
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { Link } from "react-router-dom";
 import { db } from "./firebase";
-import { RECENT_COMMENT_WINDOW, recentComments } from "./recentComments";
+import { RECENT_COMMENT_WINDOW, recentComments } from "./recentComments.js";
 
 // Query each authorized project: no collection-group rule or index is required.
 export function useRecentComments(orgId, projects, role, uid) {
