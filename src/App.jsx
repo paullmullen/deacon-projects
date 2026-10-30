@@ -1442,8 +1442,7 @@ function Project({ user }) {
                 renderItem={(e) => (
                   <List.Item>
                     {e.action} · {e.fromStatus} → {e.toStatus} ·{" "}
-                    {e.at?.toDate?.()?.toLocaleString() || "Pending"} ·{" "}
-                    {e.actorUid}
+                    {e.at?.toDate?.()?.toLocaleString() || "Pending"}
                   </List.Item>
                 )}
               />
