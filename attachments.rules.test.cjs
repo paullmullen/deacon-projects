@@ -55,12 +55,15 @@ test('ready publication requires an atomic project edit stamp',async()=>{
   await assertFails(updateDoc(fileRef('editor'),{name:'Replaced.pdf'}));
   await assertFails(deleteDoc(fileRef('viewer')));
 });
-test('public attachments follow project visibility and drafts stay private',async()=>{
+test('public attachments follow visibility, including shared drafts',async()=>{
   await assertSucceeds(setDoc(fileRef('editor','public'),data()));
   await assertSucceeds(uploadBytes(objectRef('editor','public'),new Uint8Array([1]),{contentType:'application/pdf',contentDisposition:'attachment'}));
   await assertSucceeds(getBytes(objectRef(null,'public')));
   await assertSucceeds(getDocs(collection(context(null).firestore(),root,'projects','public','attachments')));
-  await assertFails(getDoc(fileRef(null,'draft')));
+  await assertSucceeds(setDoc(fileRef('editor','draft'),data()));
+  await assertSucceeds(uploadBytes(objectRef('editor','draft'),new Uint8Array([2]),{contentType:'application/pdf',contentDisposition:'attachment'}));
+  await assertSucceeds(getDoc(fileRef(null,'draft')));
+  await assertSucceeds(getBytes(objectRef(null,'draft')));
   await assertFails(getDocs(collection(context(null).firestore(),root,'projects','private','attachments')));
   const db=context('editor').firestore();
   await assertSucceeds(updateDoc(doc(db,root,'projects','public'),{visibility:'private',updatedAt:serverTimestamp(),updatedBy:'editor'}));

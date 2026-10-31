@@ -55,7 +55,10 @@ service cloud.firestore {
         allow list, create, update, delete: if false;
       }
       match /projects/{projectId} {
-        allow get, list: if isMember(orgId) || (resource.data.visibility == 'public' && resource.data.status in ['proposed', 'active', 'closed']);
+        // A shared public brief can be opened at any lifecycle stage.
+        allow get: if resource.data.visibility == 'public' || isMember(orgId);
+        // Drafts remain excluded from the public portfolio.
+        allow list: if (resource.data.visibility == 'public' && resource.data.status in ['proposed', 'active', 'closed']) || isMember(orgId);
         allow create: if canEdit(orgId)
           && request.resource.data.status == 'draft'
           && request.resource.data.visibility == 'private'
@@ -151,7 +154,7 @@ service cloud.firestore {
           function readable() {
             let project = parentData();
             return (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status','active') != 'inactive')
-              || (project.visibility == 'public' && project.status in ['proposed','active','closed']);
+              || project.visibility == 'public';
           }
           function editable() {
             return canEdit(orgId) && parentData().status != 'closed' && parentData().get('archived',false) == false;

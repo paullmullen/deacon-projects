@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, collection, setDoc, updateDoc, writeBatch, serverTimestamp } = require('firebase/firestore');
+const { doc, collection, setDoc, getDoc, getDocs, query, where, updateDoc, writeBatch, serverTimestamp } = require('firebase/firestore');
 
 (async () => {
   const projectId = process.env.GCLOUD_PROJECT || 'deaconprojects';
@@ -22,6 +22,27 @@ const { doc, collection, setDoc, updateDoc, writeBatch, serverTimestamp } = requ
       await setDoc(doc(db, `${root}/members/editor1`), { role: 'editor' });
       await setDoc(doc(db, `${root}/members/viewer1`), { role: 'viewer' });
     });
+    const visitor = env.unauthenticatedContext().firestore();
+    await env.withSecurityRulesDisabled(async context => {
+      for (const status of ['draft', 'proposed', 'active', 'closed']) {
+        for (const visibility of ['public', 'private']) {
+          await setDoc(doc(context.firestore(), path(`${visibility}-${status}`)), {
+            title: 'Shared brief', status, visibility
+          });
+        }
+      }
+    });
+    for (const status of ['draft', 'proposed', 'active', 'closed']) {
+      await assertSucceeds(getDoc(doc(visitor, path(`public-${status}`))));
+      await assertFails(getDoc(doc(visitor, path(`private-${status}`))));
+      await assertFails(updateDoc(doc(visitor, path(`public-${status}`)), { title: 'Unauthorized edit' }));
+    }
+    await assertSucceeds(getDocs(query(collection(visitor, `${root}/projects`),
+      where('visibility', '==', 'public'), where('status', 'in', ['proposed', 'active', 'closed']))));
+    await assertFails(getDocs(collection(visitor, `${root}/projects`)));
+    await assertFails(getDocs(collection(visitor, path('public-draft'), 'notes')));
+    await assertFails(getDocs(collection(visitor, path('public-draft'), 'history')));
+    console.log('PASS: public direct links work at every stage; confidential briefs, edits, notes and history stay protected');
     const editor = env.authenticatedContext('editor1').firestore();
     const viewer = env.authenticatedContext('viewer1').firestore();
     await seedDraft('valid');

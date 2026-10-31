@@ -1171,7 +1171,7 @@ function Project({ user }) {
               name="visibility"
               label="Project visibility"
               rules={[{ required: true }]}
-              extra="Public projects can be viewed by visitors once they are Proposed, Active, or Closed. Drafts remain visible only to organization members."
+              extra="Public projects can be viewed without signing in using a direct link. Drafts appear on the portfolio only for organization members."
             >
               <Select
                 options={[
@@ -1182,7 +1182,7 @@ function Project({ user }) {
                   {
                     value: "public",
                     label:
-                      "Public — visible to visitors when project is proposed, active, or closed.",
+                      "Public — anyone with the link can view.",
                   },
                 ]}
               />

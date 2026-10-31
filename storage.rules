@@ -14,7 +14,7 @@ service firebase.storage {
     }
     function readable(orgId,projectId) {
       let project = firestore.get(/databases/(default)/documents/organizations/$(orgId)/projects/$(projectId)).data;
-      return (project.visibility == 'public' && project.status in ['proposed','active','closed']) || member(orgId);
+      return project.visibility == 'public' || member(orgId);
     }
     match /organizations/{orgId}/projects/{projectId}/attachments/{attachmentId}/file {
       allow get: if readable(orgId,projectId);
