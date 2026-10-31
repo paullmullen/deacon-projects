@@ -2,7 +2,7 @@ const {randomBytes,createHash,timingSafeEqual}=require('node:crypto');
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
 const {getFirestore,FieldValue}=require('firebase-admin/firestore');
 const {getAuth}=require('firebase-admin/auth');
-const {ROLES,validOrg,validUid,normalizeEmail,validEmail,clean,inviteId,canAdmin,roleChangeAllowed}=require('./membershipPolicy');
+const {validProjectIds,ROLES,validOrg,validUid,normalizeEmail,validEmail,clean,inviteId,canAdmin,roleChangeAllowed}=require('./membershipPolicy');
 const {sendEmail,emailSecrets}=require('./emailTransport');
 
 const REGION='us-central1';
@@ -23,6 +23,14 @@ async function adminOnly(req,orgId,db){
 }
 const memberRef=(db,orgId,uid)=>db.doc(`organizations/${orgId}/members/${uid}`);
 const requestRef=(db,orgId,uid)=>db.doc(`organizations/${orgId}/membershipRequests/${uid}`);
+async function assignments(req,orgId,db,role){
+  const ids=req.data?.projectIds ?? [];
+  if(!validProjectIds(ids))fail('invalid-argument','Select up to 100 distinct projects.');
+  if(role!=='special_access')return [];
+  const projects=await Promise.all(ids.map(id=>db.doc(`organizations/${orgId}/projects/${id}`).get()));
+  if(projects.some(p=>!p.exists||p.get('visibility')!=='private'))fail('invalid-argument','Special Access assignments must be confidential projects in this organization.');
+  return ids;
+}
 const profile=user=>({email:user.email||'',displayName:user.displayName||user.email||''});
 
 exports.requestMembership=callable(async(req,orgId,db)=>{
@@ -62,7 +70,7 @@ exports.claimInvitation=callable(async(req,orgId,db)=>{
     const claimedBy=invitation.get('claimedBy');
     if(claimedBy&&claimedBy!==user.uid)fail('permission-denied','Invitation already claimed.');
     const role=invitation.get('role');
-    tx.create(memberRef(db,orgId,user.uid),{...profile(user),role,joinedAt:FieldValue.serverTimestamp(),invitedBy:invitation.get('invitedBy')||null});
+    tx.create(memberRef(db,orgId,user.uid),{...profile(user),role,projectIds:invitation.get('projectIds')||[],joinedAt:FieldValue.serverTimestamp(),invitedBy:invitation.get('invitedBy')||null});
     tx.update(ref,{claimedBy:user.uid,claimedAt:FieldValue.serverTimestamp()});
     return {status:'member',role};
   });
@@ -72,11 +80,12 @@ exports.inviteMember=callable(async(req,orgId,db)=>{
   const email=normalizeEmail(req.data?.email);
   const role=req.data?.role;
   if(!validEmail(email)||!ROLES.includes(role))fail('invalid-argument','Valid email and role required.');
+  const projectIds=await assignments(req,orgId,db,role);
   const ref=db.doc(`organizations/${orgId}/invitations/${inviteId(email)}`);
   const existing=await ref.get();
   if(existing.exists&&existing.get('claimedBy'))fail('failed-precondition','Invitation already accepted. Manage this user in Current members.');
   const token=randomBytes(32).toString('hex');
-  await ref.set({email,role,invitedBy:req.auth.uid,createdAt:FieldValue.serverTimestamp(),tokenHash:invitationHash(token),expiresAtMs:Date.now()+INVITE_LIFETIME_MS,claimedBy:null,claimedAt:null});
+  await ref.set({email,role,projectIds,invitedBy:req.auth.uid,createdAt:FieldValue.serverTimestamp(),tokenHash:invitationHash(token),expiresAtMs:Date.now()+INVITE_LIFETIME_MS,claimedBy:null,claimedAt:null});
   const link=`${appUrl}/org/${encodeURIComponent(orgId)}/invite?token=${token}`;
   try{
     await sendEmail({to:email,subject:'Invitation to DeaconProjects',text:`You have been invited to join ${orgId} on DeaconProjects.\n\nOpen this private invitation link to create or sign into your account. The link expires in 7 days and can only be accepted once. No additional email verification is required.\n\n${link}\n`});
@@ -110,7 +119,7 @@ exports.acceptInvitation=callable(async(req,orgId,db)=>{
     const claimedBy=inviteSnap.get('claimedBy');
     if(claimedBy&&claimedBy!==user.uid)fail('permission-denied','Invitation already accepted.');
     if(memberSnap.exists&&memberSnap.get('status')==='inactive')fail('permission-denied','An administrator must reactivate this account.');
-    if(!memberSnap.exists)tx.create(member,{...profile(user),role:inviteSnap.get('role'),status:'active',joinedAt:FieldValue.serverTimestamp(),invitedBy:inviteSnap.get('invitedBy')||null});
+    if(!memberSnap.exists)tx.create(member,{...profile(user),role:inviteSnap.get('role'),projectIds:inviteSnap.get('projectIds')||[],status:'active',joinedAt:FieldValue.serverTimestamp(),invitedBy:inviteSnap.get('invitedBy')||null});
     if(!claimedBy)tx.update(ref,{claimedBy:user.uid,claimedAt:FieldValue.serverTimestamp(),tokenHash:invitationHash(token)});
     return {status:'member',role:memberSnap.exists?memberSnap.get('role'):inviteSnap.get('role')};
   });
@@ -121,7 +130,7 @@ exports.acceptInvitation=callable(async(req,orgId,db)=>{
 exports.listInvitations=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
   const snap=await db.collection(`organizations/${orgId}/invitations`).get();
-  return {invitations:snap.docs.map(d=>({email:d.get('email'),role:d.get('role')||'viewer',claimed:!!d.get('claimedBy'),revoked:d.get('revoked')===true}))};
+  return {invitations:snap.docs.map(d=>({email:d.get('email'),role:d.get('role')||'viewer',projectIds:d.get('projectIds')||[],claimed:!!d.get('claimedBy'),revoked:d.get('revoked')===true}))};
 });
 exports.removeInvitation=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
@@ -135,18 +144,19 @@ exports.approveMembership=callable(async(req,orgId,db)=>{
   await adminOnly(req,orgId,db);
   const {uid,role}=req.data||{};
   if(!validUid(uid)||!ROLES.includes(role))fail('invalid-argument','Valid user and role required.');
+  const projectIds=await assignments(req,orgId,db,role);
   const user=await getAuth().getUser(uid).catch(()=>fail('not-found','User account not found.'));
   if(!user.emailVerified)fail('failed-precondition','User must verify email before approval.');
   await db.runTransaction(async tx=>{
     const request=await tx.get(requestRef(db,orgId,uid));
     if(!request.exists||request.get('status')!=='pending')fail('failed-precondition','No pending membership request.');
-    tx.set(memberRef(db,orgId,uid),{...profile(user),role,joinedAt:FieldValue.serverTimestamp()},{merge:true});
+    tx.set(memberRef(db,orgId,uid),{...profile(user),role,projectIds,joinedAt:FieldValue.serverTimestamp()},{merge:true});
     tx.update(requestRef(db,orgId,uid),{status:'approved',reviewedBy:req.auth.uid,reviewedAt:FieldValue.serverTimestamp()});
   });
   try {
     const settingsSnap=await db.doc(`organizations/${orgId}/settings/email`).get();
     const settings=settingsSnap.exists?settingsSnap.data():{};
-    await sendEmail({to:user.email,subject:'DeaconProjects access approved',text:`Your ${role} access to ${orgId} has been approved.\n\nOpen your portfolio: ${appUrl}/org/${encodeURIComponent(orgId)}\n`,replyTo:settings.replyToEmail||undefined});
+    await sendEmail({to:user.email,subject:'DeaconProjects access approved',text:`Your ${role==='special_access'?'Special Access':role} access to ${orgId} has been approved.\n\nOpen your portfolio: ${appUrl}/org/${encodeURIComponent(orgId)}\n`,replyTo:settings.replyToEmail||undefined});
   }catch(error){console.error('Membership approval email failed',error);}
   return {ok:true};
 },emailSecrets);
@@ -166,13 +176,14 @@ exports.changeMemberRole=callable(async(req,orgId,db)=>{
   const {uid,role}=req.data||{};
   if(!validUid(uid)||!ROLES.includes(role))fail('invalid-argument','Valid user and role required.');
   if(uid===req.auth.uid)fail('failed-precondition','Administrators cannot change their own role.');
+  const projectIds=await assignments(req,orgId,db,role);
   const members=db.collection(`organizations/${orgId}/members`);
   await db.runTransaction(async tx=>{
     const [target,admins]=await Promise.all([tx.get(members.doc(uid)),tx.get(members.where('role','==','admin'))]);
     if(!target.exists)fail('not-found','Member not found.');
     if(target.get('status')==='inactive')fail('failed-precondition','Reactivate the member before changing their role.');
     if(!roleChangeAllowed({actorUid:req.auth.uid,targetUid:uid,targetRole:target.get('role'),newRole:role,adminCount:admins.size}))fail('failed-precondition','Role change would violate administrator protections.');
-    tx.update(members.doc(uid),{role,updatedAt:FieldValue.serverTimestamp(),updatedBy:req.auth.uid});
+    tx.update(members.doc(uid),{role,projectIds,updatedAt:FieldValue.serverTimestamp(),updatedBy:req.auth.uid});
   });
   return {ok:true};
 });

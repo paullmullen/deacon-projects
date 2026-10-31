@@ -1,6 +1,6 @@
 'use strict';
 const {createHash}=require('node:crypto');
-const ROLES=Object.freeze(['viewer','editor','admin']);
+const ROLES=Object.freeze(['viewer','special_access','editor','admin']);
 const validOrg=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(v);
 const validUid=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,128}$/.test(v);
 const normalizeEmail=v=>typeof v==='string'?v.trim().toLowerCase():'';
@@ -12,4 +12,5 @@ const roleChangeAllowed=({actorUid,targetUid,targetRole,newRole,adminCount})=>
   validUid(actorUid)&&validUid(targetUid)&&ROLES.includes(newRole)&&
   actorUid!==targetUid&&
   !(targetRole==='admin'&&newRole!=='admin'&&adminCount<=1);
-module.exports={ROLES,validOrg,validUid,normalizeEmail,validEmail,clean,inviteId,canAdmin,roleChangeAllowed};
+const validProjectIds=ids=>Array.isArray(ids)&&ids.length<=100&&new Set(ids).size===ids.length&&ids.every(id=>typeof id==='string'&&/^[a-zA-Z0-9_-]{1,128}$/.test(id));
+module.exports={validProjectIds,ROLES,validOrg,validUid,normalizeEmail,validEmail,clean,inviteId,canAdmin,roleChangeAllowed};

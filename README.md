@@ -25,6 +25,9 @@ Based on the uploaded App.jsx and firestore.rules (October 22, 2026).
 - Signed-out direct link to a public Draft: denied.
 - Signed-out direct link to a confidential Active project: denied.
 - Member (viewer): sees Draft and Confidential, but cannot edit.
+- Special Access: same read access as a viewer; editor privileges (brief, lifecycle, comments and attachments) only for confidential projects assigned in User administration. Cannot create projects, reorder the portfolio or change project visibility. Closed and archived projects remain read-only. Removing assignments, changing role or deactivating membership revokes editing access.
+- User administration: select Special Access as the role and save the confidential-project assignments. Invitations and membership approvals can include assignments. Deploy Functions, Firestore rules, Storage rules and Hosting together for this feature.
+- Security verification: `firebase emulators:exec --only firestore,storage --project demo-special-access "npm run test:special-access"`.
 - Member (editor/admin): sees all and can create drafts.
 - Closed projects appear last, collapsed by default; search finds matching closed projects.
 - Existing lifecycle actions, history, email notifications, and print brief still work.

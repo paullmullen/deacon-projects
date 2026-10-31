@@ -1,3 +1,4 @@
+import { hasProjectEditorAccess, roleLabel } from "./projectAccess.js";
 import { useRecentComments, RecentCommentIndicator, RecentCommentsStatistic } from "./DashboardComments.jsx";
 import ProjectBrief from "./ProjectBrief";
 import ProjectAttachments, { downloadAttachment, loadProjectAttachments, useProjectAttachments } from "./ProjectAttachments";
@@ -91,10 +92,10 @@ function useUser() {
   return user;
 }
 function useOrg(orgId, user) {
-  const [state, setState] = useState({ loading: true, org: null, role: null });
+  const [state, setState] = useState({ loading: true, org: null, role: null, projectIds: [] });
   useEffect(() => {
     let active = true;
-    setState({ loading: true, org: null, role: null });
+    setState({ loading: true, org: null, role: null, projectIds: [] });
     Promise.all([
       getDoc(doc(db, "organizations", orgId)),
       user
@@ -106,6 +107,7 @@ function useOrg(orgId, user) {
           setState({
             loading: false,
             org: o.exists() ? o.data() : null,
+            projectIds: m?.exists() && m.data().status !== "inactive" ? m.data().projectIds || [] : [],
             role: m?.exists() && m.data().status !== "inactive" ? m.data().role : null,
           });
       })
@@ -189,7 +191,7 @@ function Home() {
 function Dashboard({ user }) {
   const { message } = AntApp.useApp();
   const { orgId } = useParams();
-  const { loading, org, role } = useOrg(orgId, user);
+  const { loading, org, role, projectIds } = useOrg(orgId, user);
   const [items, setItems] = useState([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
@@ -247,7 +249,7 @@ function Dashboard({ user }) {
     };
   }, [orgId, role, loading]);
 
-  const comments = useRecentComments(orgId, items, role, user?.uid);
+  const comments = useRecentComments(orgId, items, role, user?.uid, projectIds);
 
   if (loading) return <Spin />;
   if (!org)
@@ -340,7 +342,7 @@ function Dashboard({ user }) {
             {p.shortDescription}
           </Typography.Paragraph>
         )}
-        {canEdit && <RecentCommentIndicator orgId={orgId} projectId={p.id} notes={comments.notes.filter(note => note.projectId === p.id)} />}
+        {hasProjectEditorAccess(role, projectIds, p, p.id) && <RecentCommentIndicator orgId={orgId} projectId={p.id} notes={comments.notes.filter(note => note.projectId === p.id)} />}
         <Typography.Text type="secondary">
           Lead: {p.leadDeacon || "Not assigned"}
         </Typography.Text>
@@ -366,7 +368,7 @@ function Dashboard({ user }) {
         </Typography.Title>
         <Typography.Text type="secondary">
           Project Portfolio ·{" "}
-          {isMember ? `Member view (${role})` : "Public view"}
+          {isMember ? `Member view (${roleLabel(role)})` : "Public view"}
         </Typography.Text>
       </div>
       <Row gutter={[12, 12]}>
@@ -379,7 +381,7 @@ function Dashboard({ user }) {
               </Card>
             </Col>
           ))}
-        {canEdit && <RecentCommentsStatistic orgId={orgId} projects={accessible} state={comments} fetching={fetching} />}
+        {(canEdit || role === "special_access") && <RecentCommentsStatistic orgId={orgId} projects={accessible} state={comments} fetching={fetching} />}
       </Row>
       {isMember && orgId === "elmbrook" && (
         <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
@@ -457,7 +459,7 @@ function Dashboard({ user }) {
           try {
             const prepared = await Promise.all(chosen.map(async project => ({
               ...project, printAttachments: await loadProjectAttachments(orgId,project.id),
-              printNotes: reviewNotes && canEdit ? await loadProjectNotes(orgId,project.id) : null,
+              printNotes: reviewNotes && hasProjectEditorAccess(role, projectIds, project, project.id) ? await loadProjectNotes(orgId,project.id) : null,
             })));
             setReviewOpen(false);
             setPrintProjects(prepared);
@@ -476,7 +478,7 @@ function Dashboard({ user }) {
             { label: "Active", value: "active" },
           ]}
         />
-        {canEdit && <Checkbox checked={reviewNotes} onChange={e => setReviewNotes(e.target.checked)} style={{ marginTop: 16 }}>Include comments / meeting notes</Checkbox>}
+        {(canEdit || role === "special_access") && <Checkbox checked={reviewNotes} onChange={e => setReviewNotes(e.target.checked)} style={{ marginTop: 16 }}>Include comments / meeting notes</Checkbox>}
         <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
           Closed projects are excluded. Each project starts on a new page.
           Confidential projects are marked individually. Briefs follow the saved dashboard order within each status. Search and title sorting do not change the package order.
@@ -493,7 +495,7 @@ function Dashboard({ user }) {
                   CONFIDENTIAL
                 </div>
               )}
-              <ProjectBrief project={project} attachments={project.printAttachments} notes={canEdit ? project.printNotes : null} orgName={org?.name || "Deacons"} />
+              <ProjectBrief project={project} attachments={project.printAttachments} notes={project.printNotes} orgName={org?.name || "Deacons"} />
             </div>
           ))}
         </div>,
@@ -767,9 +769,9 @@ function Project({ user }) {
   const { message } = AntApp.useApp();
   const { orgId, projectId } = useParams();
   const nav = useNavigate();
-  const { role, org } = useOrg(orgId, user);
-  const canReadNotes = ["editor", "admin"].includes(role);
+  const { role, org, projectIds } = useOrg(orgId, user);
   const [project, setProject] = useState(undefined);
+  const canReadNotes = hasProjectEditorAccess(role, projectIds, project, projectId);
   useEffect(() => {
     if (canReadNotes && window.location.hash === "#comments") {
       const frame = window.requestAnimationFrame(() => document.getElementById("comments")?.scrollIntoView());
@@ -912,7 +914,7 @@ function Project({ user }) {
       />
     );
   const canEdit =
-    ["editor", "admin"].includes(role) &&
+    hasProjectEditorAccess(role, projectIds, project, projectId) &&
     project.status !== "closed" &&
     !project.archived;
   const beginEdit = () => {
@@ -1173,7 +1175,7 @@ function Project({ user }) {
               rules={[{ required: true }]}
               extra="Public projects can be viewed without signing in using a direct link. Drafts appear on the portfolio only for organization members."
             >
-              <Select
+              <Select disabled={role === "special_access"}
                 options={[
                   {
                     value: "private",
@@ -1322,7 +1324,7 @@ function Project({ user }) {
                   </div>
                 )}
                 {section.fields.filter(([key]) => key !== "expectedOutcome").map(([key, label, kind, limit]) => key === "leadDeacon" ? (
-                  <ProjectLeadField key={key} orgId={orgId} project={project} form={form} />
+                  <ProjectLeadField key={key} orgId={orgId} projectId={projectId} project={project} form={form} />
                 ) : (
                   <Form.Item
                     key={key}

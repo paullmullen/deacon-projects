@@ -1,5 +1,7 @@
+import { roleLabel } from "./projectAccess.js";
 import { useEffect, useState } from "react";
 import {
+  Modal,
   Alert,
   Button,
   Card,
@@ -31,7 +33,7 @@ const functions = getFunctions(auth.app, "us-central1");
 if (import.meta.env.VITE_USE_EMULATORS === "true")
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 const call = (name, data) => httpsCallable(functions, name)(data);
-const roles = ["viewer", "editor", "admin"];
+const roles = ["viewer", "special_access", "editor", "admin"];
 export function AuthPage({ user, mode = "login" }) {
   const { orgId = "elmbrook" } = useParams();
   const navigate = useNavigate();
@@ -343,16 +345,22 @@ export function AdminUsers({ user }) {
   const [settings, setSettings] = useState({});
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
+  const [projects, setProjects] = useState([]);
+  const [inviteProjectIds, setInviteProjectIds] = useState([]);
+  const [accessMember, setAccessMember] = useState(null);
+  const [assignedIds, setAssignedIds] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
-    const [a, b, c, organization, invites] = await Promise.all([
+    const [a, b, c, organization, invites, projectSnapshot] = await Promise.all([
       getDocs(collection(db, "organizations", orgId, "membershipRequests")),
       getDocs(collection(db, "organizations", orgId, "members")),
       getDoc(doc(db, "organizations", orgId, "settings", "email")),
       getDoc(doc(db, "organizations", orgId)),
       call("listInvitations", {orgId}),
+      getDocs(collection(db, "organizations", orgId, "projects")),
     ]);
+    setProjects(projectSnapshot.docs.map(d => ({id:d.id,...d.data()})));
     setOrgName(organization.exists() ? organization.data().name || "" : "");
     setRequests(
       a.docs
@@ -387,12 +395,15 @@ export function AdminUsers({ user }) {
       await call(name, { orgId, ...data });
       message.success("Saved");
       await refresh();
+      return true;
     } catch (e) {
       message.error(e.message);
+      return false;
     } finally {
       setBusy(false);
     }
   };
+  const projectOptions = projects.filter(p => p.visibility === "private").sort((a,b) => String(a.title || "").localeCompare(String(b.title || ""))).map(p => ({value:p.id,label:p.title}));
   if (loading) return <Card loading />;
   if (role !== "admin")
     return (
@@ -426,10 +437,10 @@ export function AdminUsers({ user }) {
                       disabled={busy}
                       size="small"
                       onClick={() =>
-                        act("approveMembership", { uid: r.uid, role })
+                        role === "special_access" ? (setAccessMember({...r,pending:true}), setAssignedIds([])) : act("approveMembership", { uid: r.uid, role })
                       }
                     >
-                      Approve {role}
+                      Approve {roleLabel(role)}
                     </Button>
                   ))}
                   <Button
@@ -455,29 +466,34 @@ export function AdminUsers({ user }) {
             onChange={(e) => setInviteEmail(e.target.value)}
           />
           <Select aria-label="Invitation role" value={inviteRole} onChange={setInviteRole}
-            style={{width:130}} options={roles.map(value=>({value,label:value}))} />
+            style={{width:170}} options={roles.map(value=>({value,label:roleLabel(value)}))} />
           <Button
             type="primary"
             disabled={busy || !inviteEmail}
             onClick={async () => {
-              await act("inviteMember", { email: inviteEmail, role: inviteRole });
-              setInviteEmail("");
+              if (await act("inviteMember", { email: inviteEmail, role: inviteRole, projectIds: inviteRole === "special_access" ? inviteProjectIds : [] })) {
+                setInviteEmail(""); setInviteProjectIds([]);
+              }
             }}
           >
             Send invitation
           </Button>
         </Space.Compact>
+        {inviteRole === "special_access" && <div style={{marginTop:12}}>
+          <Typography.Paragraph>Select confidential projects this user may edit. Other projects remain view-only.</Typography.Paragraph>
+          <Select mode="multiple" aria-label="Invitation confidential projects" placeholder="Select confidential projects" style={{width:"100%"}} options={projectOptions} value={inviteProjectIds} onChange={setInviteProjectIds} disabled={busy} optionFilterProp="label" />
+        </div>}
       </Card>
       <Card title="Invitations">
         <Table rowKey="email" size="small" dataSource={invitations}
           pagination={{pageSize:10}}
           columns={[
             {title:"Email",dataIndex:"email"},
-            {title:"Assigned role",dataIndex:"role"},
+            {title:"Assigned role",dataIndex:"role",render:roleLabel},
             {title:"Status",render:(_,r)=>r.revoked?"Revoked":r.claimed?"Accepted":"Awaiting registration"},
             {title:"Actions",render:(_,r)=>
               <Space wrap>
-                {!r.claimed && !r.revoked && <Button size="small" disabled={busy} onClick={()=>act("inviteMember",{email:r.email,role:r.role})}>Resend</Button>}
+                {!r.claimed && !r.revoked && <Button size="small" disabled={busy} onClick={()=>act("inviteMember",{email:r.email,role:r.role,projectIds:r.projectIds||[]})}>Resend</Button>}
                 <Popconfirm
                   title="Remove this invitation?"
                   description={r.claimed ? "The member's access will not be affected." : "The invitation link will no longer work."}
@@ -495,6 +511,7 @@ export function AdminUsers({ user }) {
         <Table
           rowKey="uid"
           dataSource={members}
+          scroll={{x:1000}}
           pagination={{ pageSize: 10 }}
           columns={[
             { title: "Name", dataIndex: "displayName" },
@@ -504,15 +521,22 @@ export function AdminUsers({ user }) {
               title: "Role",
               render: (_, r) => (
                 <Select
-                  style={{ width: 130 }}
+                  style={{ width: 170 }}
                   value={r.role}
                   disabled={busy || r.uid === user.uid || r.status === "inactive"}
-                  options={roles.map((value) => ({ value, label: value }))}
+                  options={roles.map((value) => ({ value, label: roleLabel(value) }))}
                   onChange={(role) =>
-                    act("changeMemberRole", { uid: r.uid, role })
+                    role === "special_access" ? (setAccessMember(r), setAssignedIds(r.role === "special_access" ? r.projectIds || [] : [])) : act("changeMemberRole", { uid: r.uid, role })
                   }
                 />
               ),
+            },
+            {
+              title: "Assigned confidential projects",
+              render: (_, r) => r.role === "special_access" ? <Space direction="vertical">
+                <Typography.Text>{(r.projectIds || []).map(id => projects.find(p => p.id === id)?.title || "Unavailable project").join(", ") || "None assigned"}</Typography.Text>
+                <Button size="small" disabled={busy || r.status === "inactive"} onClick={() => {setAccessMember(r);setAssignedIds(r.projectIds || []);}}>Assign projects</Button>
+              </Space> : "—",
             },
             {
               title: "Access",
@@ -533,6 +557,15 @@ export function AdminUsers({ user }) {
           ]}
         />
       </Card>
+      <Modal title={`Special Access · ${accessMember?.displayName || accessMember?.email || ""}`} open={!!accessMember} confirmLoading={busy} onCancel={() => !busy && setAccessMember(null)} onOk={async () => {
+        if (await act(accessMember.pending ? "approveMembership" : "changeMemberRole", {uid:accessMember.uid,role:"special_access",projectIds:assignedIds})) setAccessMember(null);
+      }} okText="Save access">
+        <Typography.Paragraph>Editor privileges apply only to the assigned confidential projects, including comments and attachments. Other projects remain view-only. No assignments means view-only access.</Typography.Paragraph>
+        <Select mode="multiple" aria-label="Assigned confidential projects" style={{width:"100%"}} value={assignedIds} onChange={setAssignedIds} disabled={busy} optionFilterProp="label" options={[
+          ...projectOptions,
+          ...assignedIds.filter(id => !projectOptions.some(p => p.value === id)).map(id => ({value:id,label:`${projects.find(p => p.id === id)?.title || "Unavailable project"} (remove assignment)`})),
+        ]} />
+      </Modal>
       <Card title="Organization email settings">
         <Form
           key={settings.updatedAt?.seconds || 0}

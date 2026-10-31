@@ -8,7 +8,8 @@ service firebase.storage {
     function editable(orgId,projectId) {
       let project = firestore.get(/databases/(default)/documents/organizations/$(orgId)/projects/$(projectId)).data;
       let membership = firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
-      return request.auth != null && membership.role in ['editor','admin']
+      return request.auth != null && (membership.role in ['editor','admin'] || (membership.role == 'special_access'
+          && project.visibility == 'private' && projectId in membership.get('projectIds', [])))
         && membership.get('status','active') != 'inactive'
         && project.status != 'closed' && project.get('archived',false) == false;
     }
