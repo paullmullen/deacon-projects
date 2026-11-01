@@ -2,26 +2,83 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isMember(orgId) {
-      return request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+      return request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status','active') != 'inactive';
+    }
+    function canReadMemberProject(orgId, projectId) {
+      return isMember(orgId)
+        && (get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role != 'special_access'
+          || projectId in get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('projectIds', []));
     }
     function isOrgAdmin(orgId) {
       return request.auth != null
         && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
-        && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+        && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin'
+        && isMember(orgId);
     }
     function canEdit(orgId) {
       return isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in ['editor', 'admin']
         && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status', 'active') != 'inactive';
+    }
+    function canEditProject(orgId, projectId) {
+      let member = get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
+      return request.auth != null && member.get('status', 'active') != 'inactive'
+        && (member.role in ['editor', 'admin'] || (member.role == 'special_access'
+          && projectId in member.get('projectIds', [])
+          && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'private'));
+    }
+    function validBriefFields(data) {
+      return (data.get('shortDescription', '') is string && data.get('shortDescription', '').size() <= 500)
+        && (data.get('longDescription', '') is string && data.get('longDescription', '').size() <= 4000)
+        && (data.get('purpose', '') is string && data.get('purpose', '').size() <= 500)
+        && (data.get('leadDeacon', '') is string && data.get('leadDeacon', '').size() <= 160)
+        && (data.get('teamMembers', '') is string && data.get('teamMembers', '').size() <= 1000)
+        && (data.get('stakeholders', '') is string && data.get('stakeholders', '').size() <= 1000)
+        && (data.get('kickoffDate', '') is string && data.get('kickoffDate', '').size() <= 4000)
+        && (data.get('targetDate', '') is string && data.get('targetDate', '').size() <= 4000)
+        && (data.get('actualDate', '') is string && data.get('actualDate', '').size() <= 4000)
+        && (data.get('expectedOutcome', '') is string && data.get('expectedOutcome', '').size() <= 1000)
+        && (data.get('deliverables', '') is string && data.get('deliverables', '').size() <= 4000)
+        && (!data.keys().hasAny(['assumptionsTable']) || (data.assumptionsTable is list && data.assumptionsTable.size() <= 30))
+        && (!data.keys().hasAny(['nextStepsTable']) || (data.nextStepsTable is list && data.nextStepsTable.size() <= 30))
+        && (!data.keys().hasAny(['supportingDocuments']) || (data.supportingDocuments is list && data.supportingDocuments.size() <= 20))
+        && (!data.keys().hasAny(['deliverableCategories']) || (
+          data.deliverableCategories is list
+          && data.deliverableCategories.size() <= 7
+          && data.deliverableCategories.hasOnly([
+            'Research report / assessment',
+            'Recommendation / proposal',
+            'Project plan',
+            'Project management / coordination',
+            'Implemented solution',
+            'Ongoing operational responsibility',
+            'Other'
+          ])
+        ))
+        && (data.get('assumptions', '') is string && data.get('assumptions', '').size() <= 1000)
+        && (data.get('barriers', '') is string && data.get('barriers', '').size() <= 1000)
+        && (data.get('accomplishments', '') is string && data.get('accomplishments', '').size() <= 4000)
+        && (data.get('nextSteps', '') is string && data.get('nextSteps', '').size() <= 2000)
+        && (data.get('decisionsNeeded', '') is string && data.get('decisionsNeeded', '').size() <= 1000)
+        && (data.get('links', '') is string && data.get('links', '').size() <= 4000)
+        && (data.get('projectSponsor', '') is string && data.get('projectSponsor', '').size() <= 500)
+        && (data.get('statusNote', '') is string && data.get('statusNote', '').size() <= 100)
+        && (data.get('scope', '') is string && data.get('scope', '').size() <= 500)
+        && (data.get('nextReviewDate', '') is string && data.get('nextReviewDate', '').size() <= 4000)
+        && (data.get('workingDetails', '') is string && data.get('workingDetails', '').size() <= 160);
     }
     function validDashboardFields(data) {
       return (!data.keys().hasAny(['priority']) || data.priority == null ||
         (data.priority is int && data.priority >= 1 && data.priority <= 999999))
         && (!data.keys().hasAny(['deaconRole']) || data.deaconRole in ['leadership', 'representation']);
     }
-    function validProjectLead(orgId, data) {
+    function validProjectLead(orgId, data, projectId) {
       return !data.keys().hasAny(['projectLeadUid']) || data.projectLeadUid == '' ||
         (data.projectLeadUid is string && data.projectLeadUid.matches('^[a-zA-Z0-9_-]{1,128}$')
-          && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.role in ['editor', 'admin']
+          && (get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.role in ['editor', 'admin']
+            || (data.visibility == 'private'
+              && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.role == 'special_access'
+              && projectId in get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.get('projectIds', [])))
           && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.get('status', 'active') != 'inactive');
     }
     // Older unstamped records remain compatible; once stamped, preserve attribution.
@@ -56,67 +113,33 @@ service cloud.firestore {
       }
       match /projects/{projectId} {
         // A shared public brief can be opened at any lifecycle stage.
-        allow get: if resource.data.visibility == 'public' || isMember(orgId);
+        allow get: if resource.data.visibility == 'public' || canReadMemberProject(orgId, projectId);
         // Drafts remain excluded from the public portfolio.
-        allow list: if (resource.data.visibility == 'public' && resource.data.status in ['proposed', 'active', 'closed']) || isMember(orgId);
+        allow list: if canReadMemberProject(orgId, projectId)
+          || (resource.data.visibility == 'public' && (resource.data.status in ['proposed', 'active', 'closed'] || isMember(orgId)));
         allow create: if canEdit(orgId)
           && request.resource.data.status == 'draft'
           && request.resource.data.visibility == 'private'
           && request.resource.data.createdBy == request.auth.uid
           && validTitle(request.resource.data)
           && validDashboardFields(request.resource.data)
-          && validProjectLead(orgId, request.resource.data);
-        allow update: if canEdit(orgId)
+          && validProjectLead(orgId, request.resource.data, projectId);
+        allow update: if canEditProject(orgId, projectId)
+          && (canEdit(orgId) || (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['visibility','priority'])))
           && validEditorStamp(request.resource.data)
           && resource.data.status != 'closed'
           && resource.data.get('archived', false) == false
           && validTitle(request.resource.data)
           && validDashboardFields(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','visibility','updatedAt','progressEditedAt','assumptionsTable','nextStepsTable','deliverableCategories','supportingDocuments','priority','deaconRole','projectLeadUid','updatedBy','attachmentsEditedAt'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['projectLeadUid']) || validProjectLead(orgId, request.resource.data))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['projectLeadUid']) || validProjectLead(orgId, request.resource.data, projectId))
           && request.resource.data.visibility in ['private', 'public']
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['attachmentsEditedAt']) || request.resource.data.attachmentsEditedAt == request.time)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressEditedAt']) || request.resource.data.progressEditedAt == request.time)
-          && (!request.resource.data.keys().hasAny(['shortDescription']) || (request.resource.data.shortDescription is string && request.resource.data.shortDescription.size() <= 500))
-          && (!request.resource.data.keys().hasAny(['longDescription']) || (request.resource.data.longDescription is string && request.resource.data.longDescription.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['purpose']) || (request.resource.data.purpose is string && request.resource.data.purpose.size() <= 500))
-          && (!request.resource.data.keys().hasAny(['leadDeacon']) || (request.resource.data.leadDeacon is string && request.resource.data.leadDeacon.size() <= 160))
-          && (!request.resource.data.keys().hasAny(['teamMembers']) || (request.resource.data.teamMembers is string && request.resource.data.teamMembers.size() <= 1000))
-          && (!request.resource.data.keys().hasAny(['stakeholders']) || (request.resource.data.stakeholders is string && request.resource.data.stakeholders.size() <= 1000))
-          && (!request.resource.data.keys().hasAny(['kickoffDate']) || (request.resource.data.kickoffDate is string && request.resource.data.kickoffDate.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['targetDate']) || (request.resource.data.targetDate is string && request.resource.data.targetDate.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['actualDate']) || (request.resource.data.actualDate is string && request.resource.data.actualDate.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['expectedOutcome']) || (request.resource.data.expectedOutcome is string && request.resource.data.expectedOutcome.size() <= 1000))
-          && (!request.resource.data.keys().hasAny(['deliverables']) || (request.resource.data.deliverables is string && request.resource.data.deliverables.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['assumptionsTable']) || (request.resource.data.assumptionsTable is list && request.resource.data.assumptionsTable.size() <= 30))
-          && (!request.resource.data.keys().hasAny(['nextStepsTable']) || (request.resource.data.nextStepsTable is list && request.resource.data.nextStepsTable.size() <= 30))
-          && (!request.resource.data.keys().hasAny(['supportingDocuments']) || (request.resource.data.supportingDocuments is list && request.resource.data.supportingDocuments.size() <= 20))
-          && (!request.resource.data.keys().hasAny(['deliverableCategories']) || (
-            request.resource.data.deliverableCategories is list
-            && request.resource.data.deliverableCategories.size() <= 7
-            && request.resource.data.deliverableCategories.hasOnly([
-              'Research report / assessment',
-              'Recommendation / proposal',
-              'Project plan',
-              'Project management / coordination',
-              'Implemented solution',
-              'Ongoing operational responsibility',
-              'Other'
-            ])
-          ))
-          && (!request.resource.data.keys().hasAny(['assumptions']) || (request.resource.data.assumptions is string && request.resource.data.assumptions.size() <= 1000))
-          && (!request.resource.data.keys().hasAny(['barriers']) || (request.resource.data.barriers is string && request.resource.data.barriers.size() <= 1000))
-          && (!request.resource.data.keys().hasAny(['accomplishments']) || (request.resource.data.accomplishments is string && request.resource.data.accomplishments.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['nextSteps']) || (request.resource.data.nextSteps is string && request.resource.data.nextSteps.size() <= 2000))
-          && (!request.resource.data.keys().hasAny(['decisionsNeeded']) || (request.resource.data.decisionsNeeded is string && request.resource.data.decisionsNeeded.size() <= 1000))
-          && (!request.resource.data.keys().hasAny(['links']) || (request.resource.data.links is string && request.resource.data.links.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['projectSponsor']) || (request.resource.data.projectSponsor is string && request.resource.data.projectSponsor.size() <= 500))
-          && (!request.resource.data.keys().hasAny(['statusNote']) || (request.resource.data.statusNote is string && request.resource.data.statusNote.size() <= 100))
-          && (!request.resource.data.keys().hasAny(['scope']) || (request.resource.data.scope is string && request.resource.data.scope.size() <= 500))
-          && (!request.resource.data.keys().hasAny(['nextReviewDate']) || (request.resource.data.nextReviewDate is string && request.resource.data.nextReviewDate.size() <= 4000))
-          && (!request.resource.data.keys().hasAny(['workingDetails']) || (request.resource.data.workingDetails is string && request.resource.data.workingDetails.size() <= 160));
+          && validBriefFields(request.resource.data);
         // Status changes and their history event must be committed atomically.
-        allow update: if canEdit(orgId)
+        allow update: if canEditProject(orgId, projectId)
+          && (canEdit(orgId) || (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['visibility','priority'])))
           && validEditorStamp(request.resource.data)
           && resource.data.get('archived', false) == false
           && request.resource.data.lastEventId is string
@@ -148,16 +171,15 @@ service cloud.firestore {
               && request.resource.data.evaluation.lessonsLearned.size() <= 4000)
           );
         // Only drafts can be permanently deleted.
-        allow delete: if canEdit(orgId) && resource.data.status == 'draft';
+        allow delete: if canEditProject(orgId, projectId) && resource.data.status == 'draft';
         match /attachments/{attachmentId} {
           function parentData() { return get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data; }
           function readable() {
             let project = parentData();
-            return (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status','active') != 'inactive')
-              || project.visibility == 'public';
+            return project.visibility == 'public' || canReadMemberProject(orgId, projectId);
           }
           function editable() {
-            return canEdit(orgId) && parentData().status != 'closed' && parentData().get('archived',false) == false;
+            return canEditProject(orgId, projectId) && parentData().status != 'closed' && parentData().get('archived',false) == false;
           }
           function stamped() {
             let project = getAfter(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data;
@@ -179,16 +201,16 @@ service cloud.firestore {
           allow update: if editable() && stamped() && resource.data.uploadedBy == request.auth.uid
             && resource.data.status == 'uploading' && request.resource.data.status == 'ready'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
-          allow delete: if canEdit(orgId) && (
+          allow delete: if canEditProject(orgId, projectId) && (
             (resource.data.status == 'uploading' && resource.data.uploadedBy == request.auth.uid)
             || (editable() && stamped())
           );
         }
-        // Notes are visible only to editors/admins, separate from public briefs.
+        // Notes require editor privileges for this project, separate from viewer read access.
         match /notes/{noteId} {
-          allow get, list: if canEdit(orgId)
+          allow get, list: if canEditProject(orgId, projectId)
             && exists(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId));
-          allow create: if noteId != 'current' && canEdit(orgId)
+          allow create: if noteId != 'current' && canEditProject(orgId, projectId)
             && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.status != 'closed'
             && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.get('archived', false) == false
             && request.resource.data.keys().hasAll(['body','editorUid','editorName','editedAt'])
@@ -201,8 +223,9 @@ service cloud.firestore {
           allow update, delete: if false;
         }
         match /history/{eventId} {
-          allow get, list: if isMember(orgId);
-          allow create: if canEdit(orgId)
+          allow get, list: if canReadMemberProject(orgId, projectId)
+            || (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'public');
+          allow create: if canEditProject(orgId, projectId)
             && request.resource.data.keys().hasOnly(['action','fromStatus','toStatus','actorUid','at','evaluation'])
             && request.resource.data.keys().hasAll(['action','fromStatus','toStatus','actorUid','at'])
             && request.resource.data.actorUid == request.auth.uid

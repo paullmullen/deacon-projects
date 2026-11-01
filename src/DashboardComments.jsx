@@ -1,3 +1,4 @@
+import { hasProjectEditorAccess } from "./projectAccess.js";
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Col, Empty, List, Modal, Popover, Space, Spin, Statistic, Typography } from "antd";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
@@ -6,8 +7,9 @@ import { db } from "./firebase";
 import { RECENT_COMMENT_WINDOW, recentComments } from "./recentComments.js";
 
 // Query each authorized project: no collection-group rule or index is required.
-export function useRecentComments(orgId, projects, role, uid) {
-  const allowed = role === "editor" || role === "admin";
+export function useRecentComments(orgId, projects, role, uid, projectIds = []) {
+  projects = projects.filter(project => hasProjectEditorAccess(role, projectIds, project, project.id));
+  const allowed = ["editor", "admin", "special_access"].includes(role);
   const ids = JSON.stringify(projects.map(project => project.id).sort());
   const scope = JSON.stringify([orgId, role, uid, ids]);
   const [state, setState] = useState({});
@@ -75,7 +77,7 @@ export function RecentCommentsStatistic({ orgId, projects, state, fetching }) {
     </Col>
     <Modal title="Comments in the last 2 weeks" open={open} onCancel={() => setOpen(false)} footer={null} width={700}>
       {unavailable ? <Alert type="info" message="Recent comments are currently unavailable." /> : <>
-        <Typography.Paragraph type="secondary">Newest first · All accessible projects, including closed and archived projects.</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">Newest first · Projects where you can read comments, including closed and archived projects.</Typography.Paragraph>
         <List style={{ maxHeight: "65vh", overflowY: "auto" }} dataSource={state.notes} locale={{ emptyText: <Empty description="No comments in the last 2 weeks" /> }}
           renderItem={note => <List.Item key={`${note.projectId}/${note.id}`}>
             <Space direction="vertical" style={{ width: "100%" }}>

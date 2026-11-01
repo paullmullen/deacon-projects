@@ -44,3 +44,11 @@ test('role changes reject invalid roles and allow valid cross-user changes',()=>
 test('reply-to display names strip CRLF',()=>{
   assert.equal(p.clean('Alice\r\nBcc: victim@example.com'),'Alice Bcc: victim@example.com');
 });
+test('Special Access is a valid role and project assignments reject unsafe, duplicate and oversized lists',()=>{
+  const {ROLES,validProjectIds,roleChangeAllowed}=require('./membershipPolicy');
+  assert.ok(ROLES.includes('special_access'));
+  assert.equal(validProjectIds([]),true);
+  assert.equal(validProjectIds(['project-1','project_2']),true);
+  for(const ids of [null,'project', ['../other'],['a/b'],[''],['same','same'],Array.from({length:101},(_,i)=>`p${i}`)])assert.equal(validProjectIds(ids),false);
+  assert.equal(roleChangeAllowed({actorUid:'admin1',targetUid:'user1',targetRole:'viewer',newRole:'special_access',adminCount:1}),true);
+});

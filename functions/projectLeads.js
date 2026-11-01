@@ -4,7 +4,7 @@ const {getFirestore,FieldValue} = require('firebase-admin/firestore');
 const {getAuth} = require('firebase-admin/auth');
 const logger = require('firebase-functions/logger');
 const {sendEmail,emailSecrets} = require('./emailTransport');
-const {validOrg} = require('./membershipPolicy');
+const {validOrg,validUid} = require('./membershipPolicy');
 const {eligibleLead,createNoteNotifier,createProjectEditNotifier} = require('./noteNotificationService');
 exports.listProjectLeads = onCall({region:'us-central1',invoker:'public'}, async request => {
   const orgId = request.data?.orgId;
@@ -12,9 +12,13 @@ exports.listProjectLeads = onCall({region:'us-central1',invoker:'public'}, async
   if (!validOrg(orgId)) throw new HttpsError('invalid-argument','Invalid organization.');
   const db = getFirestore();
   const caller = await db.doc(`organizations/${orgId}/members/${request.auth.uid}`).get();
-  if (!caller.exists || !eligibleLead(caller.data())) throw new HttpsError('permission-denied','Editor privileges required.');
+  const projectId=request.data?.projectId;
+  const project=validUid(projectId)?await db.doc(`organizations/${orgId}/projects/${projectId}`).get():null;
+  const scoped=caller.exists && caller.get('role')==='special_access' && caller.get('status')!=='inactive'
+    && (caller.get('projectIds')||[]).includes(projectId) && project?.get('visibility')==='private';
+  if (!caller.exists || (!eligibleLead(caller.data()) && !scoped)) throw new HttpsError('permission-denied','Editor privileges required.');
   const snapshot = await db.collection(`organizations/${orgId}/members`).get();
-  const members = snapshot.docs.filter(member => eligibleLead(member.data()));
+  const members = snapshot.docs.filter(member => eligibleLead(member.data(),projectId,project?.data()));
   const leads = [];
   // Membership controls the organization display name; Auth controls account eligibility and email.
   for (let offset=0; offset<members.length; offset+=100) {

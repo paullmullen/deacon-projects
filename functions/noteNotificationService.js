@@ -1,7 +1,8 @@
 'use strict';
 const {isDeepStrictEqual} = require('node:util');
 const {createHash} = require('node:crypto');
-const eligibleLead = member => !!member && member.status !== 'inactive' && ['editor', 'admin'].includes(member.role);
+const eligibleLead = (member,projectId,project) => !!member && member.status !== 'inactive' && (['editor', 'admin'].includes(member.role) ||
+  (member.role === 'special_access' && project?.visibility === 'private' && (member.projectIds || []).includes(projectId)));
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function formatLeadEmail({title,url,editorName,isEdit,guidance,noteBody}) {
   const heading = isEdit ? 'Your project has been updated' : 'A new meeting note was added';
@@ -35,7 +36,7 @@ function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
     if (edit && (uid !== edit.projectLeadUid || uid === edit.updatedBy)) return;
     if (typeof uid !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(uid)) return;
     const member = await db.doc(`organizations/${orgId}/members/${uid}`).get();
-    if (!member.exists || !eligibleLead(member.data())) return;
+    if (!member.exists || !eligibleLead(member.data(),projectId,project)) return;
     let lead;
     try { lead = await auth.getUser(uid); }
     catch (error) {

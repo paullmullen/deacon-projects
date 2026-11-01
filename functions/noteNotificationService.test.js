@@ -100,3 +100,12 @@ test('note insertion escapes markup and preserves line breaks',()=>{
   assert(html.includes('First line<br>&lt;script&gt;bad&lt;/script&gt; &amp; details'));
   assert(!html.includes('<script>'));
 });
+
+test('Special Access lead eligibility follows confidential project assignment and revocation',()=>{
+  const member={role:'special_access',projectIds:['assigned']};
+  assert.equal(eligibleLead(member,'assigned',{visibility:'private'}),true);
+  assert.equal(eligibleLead(member,'other',{visibility:'private'}),false);
+  assert.equal(eligibleLead(member,'assigned',{visibility:'public'}),false);
+  assert.equal(eligibleLead({...member,status:'inactive'},'assigned',{visibility:'private'}),false);
+  assert.equal(eligibleLead({...member,projectIds:[]},'assigned',{visibility:'private'}),false);
+});
