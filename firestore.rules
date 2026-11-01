@@ -5,6 +5,11 @@ service cloud.firestore {
       return request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
         && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status','active') != 'inactive';
     }
+    function canReadMemberProject(orgId, projectId) {
+      return isMember(orgId)
+        && (get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role != 'special_access'
+          || projectId in get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('projectIds', []));
+    }
     function isOrgAdmin(orgId) {
       return request.auth != null
         && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
@@ -108,9 +113,10 @@ service cloud.firestore {
       }
       match /projects/{projectId} {
         // A shared public brief can be opened at any lifecycle stage.
-        allow get: if resource.data.visibility == 'public' || isMember(orgId);
+        allow get: if resource.data.visibility == 'public' || canReadMemberProject(orgId, projectId);
         // Drafts remain excluded from the public portfolio.
-        allow list: if (resource.data.visibility == 'public' && resource.data.status in ['proposed', 'active', 'closed']) || isMember(orgId);
+        allow list: if canReadMemberProject(orgId, projectId)
+          || (resource.data.visibility == 'public' && (resource.data.status in ['proposed', 'active', 'closed'] || isMember(orgId)));
         allow create: if canEdit(orgId)
           && request.resource.data.status == 'draft'
           && request.resource.data.visibility == 'private'
@@ -170,8 +176,7 @@ service cloud.firestore {
           function parentData() { return get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data; }
           function readable() {
             let project = parentData();
-            return (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status','active') != 'inactive')
-              || project.visibility == 'public';
+            return project.visibility == 'public' || canReadMemberProject(orgId, projectId);
           }
           function editable() {
             return canEditProject(orgId, projectId) && parentData().status != 'closed' && parentData().get('archived',false) == false;
@@ -218,7 +223,8 @@ service cloud.firestore {
           allow update, delete: if false;
         }
         match /history/{eventId} {
-          allow get, list: if isMember(orgId);
+          allow get, list: if canReadMemberProject(orgId, projectId)
+            || (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'public');
           allow create: if canEditProject(orgId, projectId)
             && request.resource.data.keys().hasOnly(['action','fromStatus','toStatus','actorUid','at','evaluation'])
             && request.resource.data.keys().hasAll(['action','fromStatus','toStatus','actorUid','at'])

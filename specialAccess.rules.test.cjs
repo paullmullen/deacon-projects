@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const fs=require('node:fs');
 const {initializeTestEnvironment,assertSucceeds,assertFails}=require('@firebase/rules-unit-testing');
-const {doc,collection,setDoc,getDoc,getDocs,updateDoc,deleteDoc,serverTimestamp,writeBatch}=require('firebase/firestore');
+const {doc,collection,query,where,setDoc,getDoc,getDocs,updateDoc,deleteDoc,serverTimestamp,writeBatch}=require('firebase/firestore');
 const {ref,uploadBytes,getBytes}=require('firebase/storage');
 test('Special Access confines edits, notes, lifecycle and uploads to assigned confidential projects',async()=>{
   const env=await initializeTestEnvironment({projectId:'demo-special-access',
@@ -22,8 +22,21 @@ test('Special Access confines edits, notes, lifecycle and uploads to assigned co
       }
     });
     const special=env.authenticatedContext('special');const db=special.firestore();
-    // Matches existing viewer read access; membership never grants blanket editing.
-    await assertSucceeds(getDocs(collection(db,`${root}/projects`)));
+    // Both the portfolio query and direct requests enforce assignments.
+    await assertFails(getDocs(collection(db,`${root}/projects`)));
+    await assertSucceeds(getDocs(query(collection(db,`${root}/projects`),where('visibility','==','public'))));
+    for(const id of ['assigned','public','closed','archived','draft'])await assertSucceeds(getDoc(doc(db,path(id))));
+    await assertFails(getDoc(doc(db,path('other'))));
+    await assertFails(getDocs(collection(db,`${path('other')}/attachments`)));
+    await assertFails(getDocs(collection(db,`${path('other')}/history`)));
+    await assertSucceeds(getDocs(collection(db,`${path('assigned')}/history`)));
+    await assertSucceeds(getDocs(collection(env.authenticatedContext('viewer').firestore(),`${root}/projects`)));
+    await env.withSecurityRulesDisabled(async ctx=>{
+      for(const id of ['assigned','other'])await uploadBytes(ref(ctx.storage(),`${path(id)}/attachments/seed/file`),new Uint8Array([1]),{contentType:'application/pdf'});
+    });
+    await assertSucceeds(getBytes(ref(special.storage(),`${path('assigned')}/attachments/seed/file`)));
+    await assertFails(getBytes(ref(special.storage(),`${path('other')}/attachments/seed/file`)));
+
     await assertSucceeds(updateDoc(doc(db,path('assigned')),{title:'Updated',updatedBy:'special',updatedAt:serverTimestamp()}));
     const briefFields=Object.fromEntries(['shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails'].map(key=>[key,'Full form save']));
     await assertSucceeds(updateDoc(doc(db,path('assigned')),{...briefFields,assumptionsTable:[],nextStepsTable:[],supportingDocuments:[],deliverableCategories:[],deaconRole:'leadership',projectLeadUid:'special',visibility:'private',updatedBy:'special',updatedAt:serverTimestamp(),progressEditedAt:serverTimestamp()}));
@@ -57,6 +70,10 @@ test('Special Access confines edits, notes, lifecycle and uploads to assigned co
     await assertFails(updateDoc(doc(db,path('assigned')),{title:'Revoked'}));
     await assertFails(getDocs(collection(db,`${path('assigned')}/notes`)));
     await assertFails(upload(special,'draft'));
-    await assertSucceeds(getDoc(doc(db,path('assigned'))));
+    await assertFails(getDoc(doc(db,path('assigned'))));
+    await assertFails(getDocs(collection(db,`${path('assigned')}/attachments`)));
+    await assertFails(getDocs(collection(db,`${path('assigned')}/history`)));
+    await assertFails(getBytes(ref(special.storage(),`${path('assigned')}/attachments/seed/file`)));
+    await assertSucceeds(getDoc(doc(db,path('public'))));
   } finally {await env.cleanup();}
 });

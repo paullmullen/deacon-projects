@@ -15,7 +15,9 @@ service firebase.storage {
     }
     function readable(orgId,projectId) {
       let project = firestore.get(/databases/(default)/documents/organizations/$(orgId)/projects/$(projectId)).data;
-      return project.visibility == 'public' || member(orgId);
+      return project.visibility == 'public' || (member(orgId)
+        && (firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role != 'special_access'
+          || projectId in firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('projectIds', [])));
     }
     match /organizations/{orgId}/projects/{projectId}/attachments/{attachmentId}/file {
       allow get: if readable(orgId,projectId);

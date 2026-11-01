@@ -480,7 +480,7 @@ export function AdminUsers({ user }) {
           </Button>
         </Space.Compact>
         {inviteRole === "special_access" && <div style={{marginTop:12}}>
-          <Typography.Paragraph>Select confidential projects this user may edit. Other projects remain view-only.</Typography.Paragraph>
+          <Typography.Paragraph>Select confidential projects this user may view and edit. Unassigned confidential projects are hidden; public projects remain view-only.</Typography.Paragraph>
           <Select mode="multiple" aria-label="Invitation confidential projects" placeholder="Select confidential projects" style={{width:"100%"}} options={projectOptions} value={inviteProjectIds} onChange={setInviteProjectIds} disabled={busy} optionFilterProp="label" />
         </div>}
       </Card>
@@ -560,7 +560,7 @@ export function AdminUsers({ user }) {
       <Modal title={`Special Access · ${accessMember?.displayName || accessMember?.email || ""}`} open={!!accessMember} confirmLoading={busy} onCancel={() => !busy && setAccessMember(null)} onOk={async () => {
         if (await act(accessMember.pending ? "approveMembership" : "changeMemberRole", {uid:accessMember.uid,role:"special_access",projectIds:assignedIds})) setAccessMember(null);
       }} okText="Save access">
-        <Typography.Paragraph>Editor privileges apply only to the assigned confidential projects, including comments and attachments. Other projects remain view-only. No assignments means view-only access.</Typography.Paragraph>
+        <Typography.Paragraph>This user can view and edit only the assigned confidential projects, including comments and attachments. Unassigned confidential projects are hidden. Public projects remain view-only.</Typography.Paragraph>
         <Select mode="multiple" aria-label="Assigned confidential projects" style={{width:"100%"}} value={assignedIds} onChange={setAssignedIds} disabled={busy} optionFilterProp="label" options={[
           ...projectOptions,
           ...assignedIds.filter(id => !projectOptions.some(p => p.value === id)).map(id => ({value:id,label:`${projects.find(p => p.id === id)?.title || "Unavailable project"} (remove assignment)`})),

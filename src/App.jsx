@@ -1,4 +1,4 @@
-import { hasProjectEditorAccess, roleLabel } from "./projectAccess.js";
+import { hasProjectEditorAccess, hasProjectReadAccess, roleLabel } from "./projectAccess.js";
 import { useRecentComments, RecentCommentIndicator, RecentCommentsStatistic } from "./DashboardComments.jsx";
 import ProjectBrief from "./ProjectBrief";
 import ProjectAttachments, { downloadAttachment, loadProjectAttachments, useProjectAttachments } from "./ProjectAttachments";
@@ -226,18 +226,21 @@ function Dashboard({ user }) {
     setItems([]);
     setError("");
     const projects = collection(db, "organizations", orgId, "projects");
-    // Firestore rules are not filters: the public query must exclude drafts.
-    const q = role
-      ? query(projects)
-      : query(
-          projects,
-          where("visibility", "==", "public"),
-          where("status", "in", publicStatuses),
-        );
-    getDocs(q)
-      .then((snap) => {
-        if (live) setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      })
+    // Special Access must never request the entire confidential portfolio.
+    const load = async () => {
+      if (role === "special_access") {
+        const publicSnapshot = await getDocs(query(projects, where("visibility", "==", "public")));
+        const assigned = await Promise.all(projectIds.map(id => getDoc(doc(projects, id))));
+        const snapshots = [...publicSnapshot.docs, ...assigned.filter(snapshot => snapshot.exists())];
+        return [...new Map(snapshots.map(snapshot => [snapshot.id, { id: snapshot.id, ...snapshot.data() }])).values()];
+      }
+      const q = role ? query(projects) : query(projects,
+        where("visibility", "==", "public"), where("status", "in", publicStatuses));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    };
+    load()
+      .then(projects => { if (live) setItems(projects); })
       .catch((e) => {
         if (live) setError(e.message);
       })
@@ -247,7 +250,7 @@ function Dashboard({ user }) {
     return () => {
       live = false;
     };
-  }, [orgId, role, loading]);
+  }, [orgId, role, loading, projectIds, user?.uid]);
 
   const comments = useRecentComments(orgId, items, role, user?.uid, projectIds);
 
@@ -262,8 +265,8 @@ function Dashboard({ user }) {
   // Defense in depth; Firestore rules independently enforce public access.
   const accessible = items.filter(
     (p) =>
-      isMember ||
-      (p.visibility === "public" && publicStatuses.includes(p.status)),
+      hasProjectReadAccess(role, projectIds, p, p.id) &&
+      (isMember || publicStatuses.includes(p.status)),
   );
   const current = accessible.filter((p) => !p.archived);
   const archived = accessible.filter((p) => !!p.archived);
@@ -816,7 +819,7 @@ function Project({ user }) {
     };
   }, [orgId, projectId, user?.uid]);
   useEffect(() => {
-    if (!role) {
+    if (!role || !hasProjectReadAccess(role, projectIds, project, projectId)) {
       setHistory([]);
       return;
     }
@@ -841,7 +844,7 @@ function Project({ user }) {
     return () => {
       live = false;
     };
-  }, [orgId, projectId, role, project?.status, project?.archived]);
+  }, [orgId, projectId, role, projectIds, project?.visibility, project?.status, project?.archived]);
   const transition = async (values) => {
     if (!user || !project || busy) return;
     setBusy(true);
