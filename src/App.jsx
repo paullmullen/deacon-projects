@@ -1,3 +1,5 @@
+import ProjectNavigation from "./ProjectNavigation.jsx";
+import { loadPortfolio } from "./loadPortfolio";
 import { hasProjectEditorAccess, hasProjectReadAccess, roleLabel } from "./projectAccess.js";
 import { useRecentComments, RecentCommentIndicator, RecentCommentsStatistic } from "./DashboardComments.jsx";
 import ProjectBrief from "./ProjectBrief";
@@ -225,21 +227,7 @@ function Dashboard({ user }) {
     setFetching(true);
     setItems([]);
     setError("");
-    const projects = collection(db, "organizations", orgId, "projects");
-    // Special Access must never request the entire confidential portfolio.
-    const load = async () => {
-      if (role === "special_access") {
-        const publicSnapshot = await getDocs(query(projects, where("visibility", "==", "public")));
-        const assigned = await Promise.all(projectIds.map(id => getDoc(doc(projects, id))));
-        const snapshots = [...publicSnapshot.docs, ...assigned.filter(snapshot => snapshot.exists())];
-        return [...new Map(snapshots.map(snapshot => [snapshot.id, { id: snapshot.id, ...snapshot.data() }])).values()];
-      }
-      const q = role ? query(projects) : query(projects,
-        where("visibility", "==", "public"), where("status", "in", publicStatuses));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    };
-    load()
+    loadPortfolio(orgId, role, projectIds)
       .then(projects => { if (live) setItems(projects); })
       .catch((e) => {
         if (live) setError(e.message);
@@ -333,6 +321,7 @@ function Dashboard({ user }) {
         </Space>
         <Link
           to={`/org/${orgId}/projects/${p.id}`}
+          state={{ portfolio: { search, sort, showClosed, showArchived } }}
           style={{ fontSize: 16, fontWeight: 600 }}
         >
           {p.title || "Untitled project"}
@@ -493,11 +482,6 @@ function Dashboard({ user }) {
             <div className={"review-package-item" +
               (project.visibility !== "public" ? " review-package-confidential" : "")}
               key={project.id}>
-              {project.visibility !== "public" && (
-                <div className="review-package-watermark" aria-hidden="true">
-                  CONFIDENTIAL
-                </div>
-              )}
               <ProjectBrief project={project} attachments={project.printAttachments} notes={project.printNotes} orgName={org?.name || "Deacons"} />
             </div>
           ))}
@@ -772,7 +756,8 @@ function Project({ user }) {
   const { message } = AntApp.useApp();
   const { orgId, projectId } = useParams();
   const nav = useNavigate();
-  const { role, org, projectIds } = useOrg(orgId, user);
+  const { loading: orgLoading, role, org, projectIds } = useOrg(orgId, user);
+  const location = useLocation();
   const [project, setProject] = useState(undefined);
   const canReadNotes = hasProjectEditorAccess(role, projectIds, project, projectId);
   useEffect(() => {
@@ -1020,6 +1005,7 @@ function Project({ user }) {
     }
   };
   return (
+    <ProjectNavigation orgId={orgId} projectId={projectId} role={role} projectIds={projectIds} loading={orgLoading} userId={user?.uid} context={location.state?.portfolio} disabled={editing || busy}>
     <div style={{ width: "100%" }}>
       <div
         style={{
@@ -1471,6 +1457,7 @@ function Project({ user }) {
         </>
       )}
     </div>
+    </ProjectNavigation>
   );
 }
 export default function App() {
