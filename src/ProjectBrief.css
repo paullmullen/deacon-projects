@@ -66,3 +66,15 @@
 .brief-attachment-download{border:0;padding:0;background:none;color:#245b85;text-decoration:underline;cursor:pointer;font:inherit;text-align:left;overflow-wrap:anywhere}
 .brief-attachment-print-title{display:none}
 @media print{.brief-attachment-download{display:none!important}.brief-attachment-print-title{display:block}}
+
+/* Shared by individual briefs and review packages; above the white content layer. */
+.brief-confidential-watermark{display:none}
+@media print{
+  .brief-confidential-watermark{
+    display:block;position:absolute;top:3.4in;left:0;width:100%;
+    text-align:center;transform:rotate(-35deg);z-index:2;
+    font:bold 56px Arial,Helvetica,sans-serif;letter-spacing:5px;
+    color:rgba(110,110,110,.20);pointer-events:none;
+    print-color-adjust:exact;-webkit-print-color-adjust:exact;
+  }
+}

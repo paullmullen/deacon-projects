@@ -482,11 +482,6 @@ function Dashboard({ user }) {
             <div className={"review-package-item" +
               (project.visibility !== "public" ? " review-package-confidential" : "")}
               key={project.id}>
-              {project.visibility !== "public" && (
-                <div className="review-package-watermark" aria-hidden="true">
-                  CONFIDENTIAL
-                </div>
-              )}
               <ProjectBrief project={project} attachments={project.printAttachments} notes={project.printNotes} orgName={org?.name || "Deacons"} />
             </div>
           ))}

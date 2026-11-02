@@ -164,6 +164,9 @@ export default function ProjectBrief({ project, notes = null, attachments = [], 
         </thead>
         <tbody><tr><td className="brief-print-body">
       <div className="brief-content">
+      {project.visibility !== "public" && (
+        <div className="brief-confidential-watermark" aria-hidden="true">CONFIDENTIAL</div>
+      )}
       <div className="brief-top-rule" />
       <div className="brief-eyebrow">
         {orgName.toUpperCase()} · PROJECT BRIEF ·{" "}
@@ -314,4 +317,3 @@ export default function ProjectBrief({ project, notes = null, attachments = [], 
     </article>
   );
 }
-
