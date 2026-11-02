@@ -1,4 +1,4 @@
-import ProjectNavigation from "./ProjectNavigation";
+import ProjectNavigation from "./ProjectNavigation.jsx";
 import { loadPortfolio } from "./loadPortfolio";
 import { hasProjectEditorAccess, hasProjectReadAccess, roleLabel } from "./projectAccess.js";
 import { useRecentComments, RecentCommentIndicator, RecentCommentsStatistic } from "./DashboardComments.jsx";

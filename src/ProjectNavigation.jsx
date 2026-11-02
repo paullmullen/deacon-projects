@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Drawer, Alert, Spin } from "antd";
 import { useNavigate } from "react-router-dom";
 import { loadPortfolio } from "./loadPortfolio";
-import { navigationProjects } from "./projectNavigation.js";
+import { navigationProjects } from "./projectNavigationOrder.js";
 import "./ProjectNavigation.css";
 
 export default function ProjectNavigation({ orgId, projectId, role, projectIds, loading, userId, context, disabled, children }) {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { navigationProjects } from "./projectNavigation.js";
+import { navigationProjects } from "./projectNavigationOrder.js";
 const items = [
   { id: "draft", title: "Draft", status: "draft", visibility: "public" },
   { id: "secret", title: "Secret", status: "active", visibility: "private", priority: 1 },
