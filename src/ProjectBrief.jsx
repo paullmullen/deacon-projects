@@ -1,3 +1,4 @@
+import LeadContact from "./LeadContact";
 import React from "react";
 import { isRepresentationOnly, safeDocumentUrl } from "./projectPresentation";
 import "./ProjectBrief.css";
@@ -118,7 +119,7 @@ function BriefTable({ heading, columns, rows }) {
     </section>
   );
 }
-export default function ProjectBrief({ project, notes = null, attachments = [], onDownloadAttachment, orgName = "Deacons" }) {
+export default function ProjectBrief({ orgId, projectId, project, notes = null, attachments = [], onDownloadAttachment, orgName = "Deacons" }) {
   const participationOnly = isRepresentationOnly(project);
   const updated =
     project.updatedAt?.toDate?.()?.toLocaleDateString("en-US", {
@@ -175,7 +176,7 @@ export default function ProjectBrief({ project, notes = null, attachments = [], 
       <h1>{text(project.title)}</h1>
       <p className="brief-deck">{text(project.shortDescription)}</p>
       <div className="brief-meta">
-        <Meta label="Project lead">{text(project.leadDeacon)}</Meta>
+        <Meta label="Project lead">{<LeadContact orgId={orgId} projectId={projectId} project={project} />}</Meta>
         {participationOnly && <Meta label="Deacon involvement">Deacon Participation Only</Meta>}
         {!participationOnly && <>
         <Meta label="Current status">{status}</Meta>

@@ -1,3 +1,4 @@
+import LeadContact from "./LeadContact";
 import ProjectNavigation from "./ProjectNavigation.jsx";
 import { loadPortfolio } from "./loadPortfolio";
 import { hasProjectEditorAccess, hasProjectReadAccess, roleLabel } from "./projectAccess.js";
@@ -83,7 +84,13 @@ const remainingTime = (value, now = new Date()) => {
 };
 
 const capitalBudgetUrl = "https://elmbrookchurch-my.sharepoint.com/:x:/g/personal/rheld_elmbrook_org/IQBDBKgsfLDoR6JVwCsc8s79AcS2Dm89FMkHGbgB1ThLuQk?e=wY3RIN&nav=MTVfe0VEMzVGOEE3LTQxMjYtRDA0OC04RTdFLTkwRTc4NENDMENGRH0";
-const publicStatuses = ["proposed", "active", "closed"];
+const publicStatuses = ["draft", "proposed", "active", "closed"];
+const statusSubtitles = {
+  active: "These projects are currently in progress with a team assigned.",
+  proposed: 'These projects are "ready to go" awaiting Elder approval.',
+  draft: "These projects are being prepared for consideration, but are not yet ready for Elder consideration.",
+  closed: "These projects are completed or closed for other reasons.",
+};
 const statusLabel = (status) =>
   status ? status[0].toUpperCase() + status.slice(1) : "Unknown";
 const visibilityLabel = (visibility) =>
@@ -304,7 +311,9 @@ function Dashboard({ user }) {
     } finally { setOrdering(false); }
   };
 
-  const projectCard = (p) => (
+  const projectCard = (p) => !isMember && p.status === "draft" ? (
+    <Card key={p.id} size="small"><Typography.Text strong style={{ fontSize: 16 }}>{p.title || "Untitled project"}</Typography.Text></Card>
+  ) : (
     <Card key={p.id} data-project-id={p.id} data-project-status={p.status} className={orderTarget === p.id ? "project-order-target" : ""} size="small" hoverable style={{ height: "100%", ...(isRepresentationOnly(p) ? { background: "#eaf4fb", borderColor: "#91bdd9" } : {}) }}>
       {canEdit && p.status !== "closed" && !p.archived && (
         <ProjectOrderHandle project={p} disabled={!canReorder} onMove={moveProject} onTarget={setOrderTarget} />
@@ -336,7 +345,7 @@ function Dashboard({ user }) {
         )}
         {hasProjectEditorAccess(role, projectIds, p, p.id) && <RecentCommentIndicator orgId={orgId} projectId={p.id} notes={comments.notes.filter(note => note.projectId === p.id)} />}
         <Typography.Text type="secondary">
-          Lead: {p.leadDeacon || "Not assigned"}
+          Lead: <LeadContact orgId={orgId} projectId={p.id} project={p} />
         </Typography.Text>
         {p.targetDate && (
           <Space direction="vertical" size={0}>
@@ -365,7 +374,7 @@ function Dashboard({ user }) {
       </div>
       <Row gutter={[12, 12]}>
         {statuses
-          .filter((status) => isMember || status !== "draft")
+
           .map((status) => (
             <Col xs={12} sm={6} lg={{ flex: "1 1 0" }} key={status}>
               <Card size="small">
@@ -482,7 +491,7 @@ function Dashboard({ user }) {
             <div className={"review-package-item" +
               (project.visibility !== "public" ? " review-package-confidential" : "")}
               key={project.id}>
-              <ProjectBrief project={project} attachments={project.printAttachments} notes={project.printNotes} orgName={org?.name || "Deacons"} />
+              <ProjectBrief orgId={orgId} projectId={project.id} project={project} attachments={project.printAttachments} notes={project.printNotes} orgName={org?.name || "Deacons"} />
             </div>
           ))}
         </div>,
@@ -501,7 +510,7 @@ function Dashboard({ user }) {
       ) : (
         <>
           {statuses
-            .filter((status) => isMember || status !== "draft")
+
             .map((status) => {
               const group = visible.filter((p) => p.status === status);
               if (status === "closed" && !showClosed && !needle) {
@@ -515,6 +524,7 @@ function Dashboard({ user }) {
                         Show closed projects
                       </Button>
                     </Space>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>{statusSubtitles.closed}</Typography.Paragraph>
                   </Card>
                 );
               }
@@ -527,6 +537,7 @@ function Dashboard({ user }) {
                     {statusLabel(status)} (
                     {needle ? group.length : count(status)})
                   </Typography.Title>
+                  <Typography.Paragraph type="secondary">{statusSubtitles[status]}</Typography.Paragraph>
                   {group.length ? (
                     <Row gutter={[12, 12]}>
                       {group.map((p) => (
@@ -1162,7 +1173,7 @@ function Project({ user }) {
               name="visibility"
               label="Project visibility"
               rules={[{ required: true }]}
-              extra="Public projects can be viewed without signing in using a direct link. Drafts appear on the portfolio only for organization members."
+              extra="Public draft titles appear on the portfolio, but signing in as an organization member is required to open them. Confidential projects remain restricted."
             >
               <Select disabled={role === "special_access"}
                 options={[
@@ -1417,7 +1428,7 @@ function Project({ user }) {
         </Card>
       ) : (
         <>
-          <ProjectBrief project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file,message)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
+          <ProjectBrief orgId={orgId} projectId={project.id || projectId} project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file,message)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
           {attachmentState.error && <Alert type="error" message="Attachments could not be loaded" description={attachmentState.error} />}
           {canReadNotes && (
             <Card id="comments" style={{ marginTop: 20, scrollMarginTop: 24 }}>

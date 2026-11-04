@@ -135,3 +135,16 @@ test("edit attribution cannot be spoofed or removed once recorded", async () => 
   await assertFails(updateDoc(audit("editor"), {updatedBy:deleteField(),updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(audit("admin"), {title:"Admin edit",updatedBy:"admin",updatedAt:serverTimestamp()}));
 });
+
+
+test("public draft bodies require active membership even through a direct link", async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), root, "projects", "public-draft"), {
+      title: "Draft title", status: "draft", visibility: "public", longDescription: "Members only",
+    });
+  });
+  await assertFails(getDoc(project(null, "public-draft")));
+  await assertFails(getDoc(project("inactiveEditor", "public-draft")));
+  await assertSucceeds(getDoc(project("viewer", "public-draft")));
+  await assertSucceeds(getDoc(project("editor", "public-draft")));
+});

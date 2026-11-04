@@ -112,8 +112,8 @@ service cloud.firestore {
         allow list, create, update, delete: if false;
       }
       match /projects/{projectId} {
-        // A shared public brief can be opened at any lifecycle stage.
-        allow get: if resource.data.visibility == 'public' || canReadMemberProject(orgId, projectId);
+        // Public drafts expose titles only through the publicPortfolio callable.
+        allow get: if (resource.data.visibility == 'public' && (resource.data.status != 'draft' || isMember(orgId))) || canReadMemberProject(orgId, projectId);
         // Drafts remain excluded from the public portfolio.
         allow list: if canReadMemberProject(orgId, projectId)
           || (resource.data.visibility == 'public' && (resource.data.status in ['proposed', 'active', 'closed'] || isMember(orgId)));
