@@ -1,4 +1,6 @@
-import React from "react";
+import LeadContact from "./LeadContact";
+import React, { useState } from "react";
+import { orderedSteps, isStepOverdue, shortStepDate } from "./nextSteps.js";
 import { isRepresentationOnly, safeDocumentUrl } from "./projectPresentation";
 import "./ProjectBrief.css";
 import MarkdownText from "./MarkdownText";
@@ -118,7 +120,28 @@ function BriefTable({ heading, columns, rows }) {
     </section>
   );
 }
-export default function ProjectBrief({ project, notes = null, attachments = [], onDownloadAttachment, orgName = "Deacons" }) {
+function NextStepsTable({ rows }) {
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const steps = orderedSteps(rows);
+  return <section className={`brief-block brief-next-steps${hideCompleted ? " brief-hide-completed" : ""}`}>
+    <div className="brief-steps-heading"><h2>Next steps and owners</h2>
+      {steps.some(row => row.completed) && <label className="brief-steps-filter"><input type="checkbox" checked={hideCompleted} onChange={event => setHideCompleted(event.target.checked)} /> Hide completed</label>}
+    </div>
+    {steps.length ? <table className="brief-steps-table">
+      <thead><tr><th aria-label="Completion status" /><th>Action</th><th>Owner / date</th></tr></thead>
+      <tbody>{steps.map((row, index) => <tr key={index} className={row.completed ? "brief-step-completed" : ""}>
+        <td><span className="brief-step-check" role="img" aria-label={row.completed ? "Completed" : "Incomplete"}>{row.completed ? "✓" : ""}</span></td>
+        <td>{text(row.action)}</td>
+        <td><div>{text(row.owner)}</div><div className={isStepOverdue(row) ? "brief-step-overdue" : "brief-step-date"}>
+          {row.completed ? `Done${row.completedDate ? ` ${shortStepDate(row.completedDate)}` : ""}` : row.expectedDate ? `Due ${shortStepDate(row.expectedDate)}` : ""}
+          {isStepOverdue(row) && " · overdue"}
+        </div></td>
+      </tr>)}</tbody>
+    </table> : <p>—</p>}
+    {hideCompleted && steps.length > 0 && steps.every(row => row.completed) && <p className="brief-steps-filter">All next steps completed.</p>}
+  </section>;
+}
+export default function ProjectBrief({ orgId, projectId, project, notes = null, attachments = [], onDownloadAttachment, orgName = "Deacons" }) {
   const participationOnly = isRepresentationOnly(project);
   const updated =
     project.updatedAt?.toDate?.()?.toLocaleDateString("en-US", {
@@ -175,7 +198,7 @@ export default function ProjectBrief({ project, notes = null, attachments = [], 
       <h1>{text(project.title)}</h1>
       <p className="brief-deck">{text(project.shortDescription)}</p>
       <div className="brief-meta">
-        <Meta label="Project lead">{text(project.leadDeacon)}</Meta>
+        <Meta label="Project lead">{<LeadContact orgId={orgId} projectId={projectId} project={project} />}</Meta>
         {participationOnly && <Meta label="Deacon involvement">Deacon Participation Only</Meta>}
         {!participationOnly && <>
         <Meta label="Current status">{status}</Meta>
@@ -266,14 +289,7 @@ export default function ProjectBrief({ project, notes = null, attachments = [], 
             ]}
             rows={assumptions}
           />
-          <BriefTable
-            heading="Next steps and owners"
-            columns={[
-              ["action", "Action"],
-              ["owner", "Owner"],
-            ]}
-            rows={steps}
-          />
+          <NextStepsTable key={project.id || project.title} rows={steps} />
         </div>
       </section>
       {Array.isArray(project.supportingDocuments) && project.supportingDocuments.length > 0 && (

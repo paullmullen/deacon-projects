@@ -8,3 +8,5 @@ Object.assign(exports,require('./authEmails'));
 Object.assign(exports,require('./projectLeads'));
 
 Object.assign(exports,require('./attachmentCleanup'));
+
+Object.assign(exports,require('./publicPortfolio'));
