@@ -28,7 +28,7 @@ async function assignments(req,orgId,db,role){
   if(!validProjectIds(ids))fail('invalid-argument','Select up to 100 distinct projects.');
   if(role!=='special_access')return [];
   const projects=await Promise.all(ids.map(id=>db.doc(`organizations/${orgId}/projects/${id}`).get()));
-  if(projects.some(p=>!p.exists||p.get('visibility')!=='private'))fail('invalid-argument','Special Access assignments must be confidential projects in this organization.');
+  if(projects.some(p=>!p.exists||(p.get('visibility')!=='private'&&p.get('status')!=='draft')))fail('invalid-argument','Special Access assignments must be confidential or draft projects in this organization.');
   return ids;
 }
 const profile=user=>({email:user.email||'',displayName:user.displayName||user.email||''});

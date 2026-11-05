@@ -8,6 +8,7 @@ function publicPortfolioProject(id, project) {
 }
 function canReadLeadContact(project, projectId, member) {
   const active = member && member.status !== 'inactive';
+  if (active && member.role === 'special_access' && project.status === 'draft') return (member.projectIds || []).includes(projectId);
   if (project.visibility === 'public') return project.status !== 'draft' || !!active;
   return !!active && (['viewer','editor','admin'].includes(member.role) ||
     (member.role === 'special_access' && (member.projectIds || []).includes(projectId)));

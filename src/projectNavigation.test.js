@@ -9,7 +9,7 @@ const items = [
   { id: "closed", title: "Closed", status: "closed", visibility: "public" },
 ];
 test("Special Access navigation excludes unassigned confidential projects even when current", () => {
-  assert.deepEqual(navigationProjects(items, "special_access", ["assigned"], null, "secret").map(p => p.id), ["assigned", "public", "draft", "closed"]);
+  assert.deepEqual(navigationProjects(items, "special_access", ["assigned"], null, "secret").map(p => p.id), ["assigned", "public", "closed"]);
 });
 test("anonymous navigation excludes drafts", () => {
   assert.deepEqual(navigationProjects(items, null, [], null, "draft").map(p => p.id), ["public", "closed"]);
@@ -22,4 +22,9 @@ test("portfolio search, collapsed closed section and title order are preserved",
 test("direct links retain the current archived project but exclude other archives", () => {
   const archived = [{ id: "a", archived: true, visibility: "public", status: "proposed" }, { id: "b", archived: true, visibility: "public", status: "proposed" }];
   assert.deepEqual(navigationProjects(archived, "editor", [], null, "a").map(p => p.id), ["a"]);
+});
+
+test("Special Access navigation includes only assigned drafts", () => {
+  assert.deepEqual(navigationProjects(items, "special_access", ["draft"], null, "secret").map(p => p.id), ["public", "draft", "closed"]);
+  assert.deepEqual(navigationProjects(items, "special_access", [], null, "draft").map(p => p.id), ["public", "closed"]);
 });

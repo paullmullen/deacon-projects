@@ -15,7 +15,7 @@ exports.listProjectLeads = onCall({region:'us-central1',invoker:'public'}, async
   const projectId=request.data?.projectId;
   const project=validUid(projectId)?await db.doc(`organizations/${orgId}/projects/${projectId}`).get():null;
   const scoped=caller.exists && caller.get('role')==='special_access' && caller.get('status')!=='inactive'
-    && (caller.get('projectIds')||[]).includes(projectId) && project?.get('visibility')==='private';
+    && (caller.get('projectIds')||[]).includes(projectId) && (project?.get('visibility')==='private'||project?.get('status')==='draft');
   if (!caller.exists || (!eligibleLead(caller.data()) && !scoped)) throw new HttpsError('permission-denied','Editor privileges required.');
   const snapshot = await db.collection(`organizations/${orgId}/members`).get();
   const members = snapshot.docs.filter(member => eligibleLead(member.data(),projectId,project?.data()));

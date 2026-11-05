@@ -2,7 +2,7 @@
 const {isDeepStrictEqual} = require('node:util');
 const {createHash} = require('node:crypto');
 const eligibleLead = (member,projectId,project) => !!member && member.status !== 'inactive' && (['editor', 'admin'].includes(member.role) ||
-  (member.role === 'special_access' && project?.visibility === 'private' && (member.projectIds || []).includes(projectId)));
+  (member.role === 'special_access' && (project?.visibility === 'private' || project?.status === 'draft') && (member.projectIds || []).includes(projectId)));
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function formatLeadEmail({title,url,editorName,isEdit,guidance,noteBody}) {
   const heading = isEdit ? 'Your project has been updated' : 'A new meeting note was added';

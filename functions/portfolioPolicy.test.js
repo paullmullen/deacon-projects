@@ -16,3 +16,10 @@ test('contact follows draft and confidential membership restrictions',()=>{
   assert.equal(canReadLeadContact({visibility:'private'},'p',{role:'special_access',projectIds:['p']}),true);
   assert.equal(canReadLeadContact({visibility:'public',status:'active'},'p',undefined),true);
 });
+
+test('lead contact for public drafts requires the Special Access assignment',()=>{
+  const draft={visibility:'public',status:'draft'};
+  assert.equal(canReadLeadContact(draft,'p',{role:'special_access',projectIds:[]}),false);
+  assert.equal(canReadLeadContact(draft,'p',{role:'special_access',projectIds:['p']}),true);
+  assert.equal(canReadLeadContact(draft,'p',{role:'special_access',status:'inactive',projectIds:['p']}),false);
+});

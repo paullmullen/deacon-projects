@@ -25,7 +25,8 @@ service cloud.firestore {
       return request.auth != null && member.get('status', 'active') != 'inactive'
         && (member.role in ['editor', 'admin'] || (member.role == 'special_access'
           && projectId in member.get('projectIds', [])
-          && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'private'));
+          && (get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'private'
+            || get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.status == 'draft')));
     }
     function validBriefFields(data) {
       return (data.get('shortDescription', '') is string && data.get('shortDescription', '').size() <= 500)
@@ -76,7 +77,7 @@ service cloud.firestore {
       return !data.keys().hasAny(['projectLeadUid']) || data.projectLeadUid == '' ||
         (data.projectLeadUid is string && data.projectLeadUid.matches('^[a-zA-Z0-9_-]{1,128}$')
           && (get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.role in ['editor', 'admin']
-            || (data.visibility == 'private'
+            || ((data.visibility == 'private' || data.status == 'draft')
               && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.role == 'special_access'
               && projectId in get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.get('projectIds', [])))
           && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(data.projectLeadUid)).data.get('status', 'active') != 'inactive');
@@ -113,10 +114,10 @@ service cloud.firestore {
       }
       match /projects/{projectId} {
         // Public drafts expose titles only through the publicPortfolio callable.
-        allow get: if (resource.data.visibility == 'public' && (resource.data.status != 'draft' || isMember(orgId))) || canReadMemberProject(orgId, projectId);
-        // Drafts remain excluded from the public portfolio.
+        allow get: if (resource.data.visibility == 'public' && resource.data.status != 'draft') || canReadMemberProject(orgId, projectId);
+        // Full draft records require membership or an explicit Special Access assignment.
         allow list: if canReadMemberProject(orgId, projectId)
-          || (resource.data.visibility == 'public' && (resource.data.status in ['proposed', 'active', 'closed'] || isMember(orgId)));
+          || (resource.data.visibility == 'public' && resource.data.status in ['proposed', 'active', 'closed']);
         allow create: if canEdit(orgId)
           && request.resource.data.status == 'draft'
           && request.resource.data.visibility == 'private'
@@ -176,7 +177,7 @@ service cloud.firestore {
           function parentData() { return get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data; }
           function readable() {
             let project = parentData();
-            return project.visibility == 'public' || canReadMemberProject(orgId, projectId);
+            return (project.visibility == 'public' && project.status != 'draft') || canReadMemberProject(orgId, projectId);
           }
           function editable() {
             return canEditProject(orgId, projectId) && parentData().status != 'closed' && parentData().get('archived',false) == false;
@@ -224,7 +225,8 @@ service cloud.firestore {
         }
         match /history/{eventId} {
           allow get, list: if canReadMemberProject(orgId, projectId)
-            || (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'public');
+            || (isMember(orgId) && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.visibility == 'public'
+              && get(/databases/$(database)/documents/organizations/$(orgId)/projects/$(projectId)).data.status != 'draft');
           allow create: if canEditProject(orgId, projectId)
             && request.resource.data.keys().hasOnly(['action','fromStatus','toStatus','actorUid','at','evaluation'])
             && request.resource.data.keys().hasAll(['action','fromStatus','toStatus','actorUid','at'])

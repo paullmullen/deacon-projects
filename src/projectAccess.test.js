@@ -19,3 +19,15 @@ test('Special Access reads only public or assigned confidential projects',()=>{
   assert.equal(hasProjectReadAccess(null,[],{visibility:'private'},'assigned'),false);
   for(const role of ['viewer','editor','admin'])assert.equal(hasProjectReadAccess(role,[],{visibility:'private'},'other'),true);
 });
+
+test('public drafts require Special Access assignment and revert to view-only after promotion',()=>{
+  const draft={visibility:'public',status:'draft'};
+  assert.equal(hasProjectReadAccess('special_access',[],draft,'p'),false);
+  assert.equal(hasProjectReadAccess('special_access',['p'],draft,'p'),true);
+  assert.equal(hasProjectEditorAccess('special_access',['p'],draft,'p'),true);
+  assert.equal(hasProjectEditorAccess('special_access',[],draft,'p'),false);
+  const proposed={...draft,status:'proposed'};
+  assert.equal(hasProjectReadAccess('special_access',[],proposed,'p'),true);
+  assert.equal(hasProjectEditorAccess('special_access',['p'],proposed,'p'),false);
+  assert.equal(hasProjectEditorAccess('special_access',['p'],{visibility:'private',status:'proposed'},'p'),true);
+});
