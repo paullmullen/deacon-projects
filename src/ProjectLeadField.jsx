@@ -25,7 +25,7 @@ export default function ProjectLeadField({ orgId, projectId, project, form }) {
     <Form.Item name="projectLeadUid" label="Project lead"
       extra={project.leadDeacon && !project.projectLeadUid
         ? `Existing lead: ${project.leadDeacon}. Select an account to enable email notifications. Leaving this unchanged preserves the name.`
-        : "Select an active editor, administrator, or Special Access user assigned to this confidential project. New meeting notes notify this person by email."}>
+        : "Select an active editor, administrator, or Special Access user assigned to this draft or confidential project. New meeting notes notify this person by email."}>
       <Select allowClear showSearch optionFilterProp="label" loading={loading} disabled={loading || !!error}
         placeholder={project.leadDeacon || "Select a project lead"} options={options}
         onChange={uid=>form.setFieldValue("leadDeacon",leads.find(lead=>lead.uid===uid)?.name || "")} />

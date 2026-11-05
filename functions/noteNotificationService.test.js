@@ -109,3 +109,10 @@ test('Special Access lead eligibility follows confidential project assignment an
   assert.equal(eligibleLead({...member,status:'inactive'},'assigned',{visibility:'private'}),false);
   assert.equal(eligibleLead({...member,projectIds:[]},'assigned',{visibility:'private'}),false);
 });
+
+test('Special Access lead eligibility includes assigned public drafts until promoted',()=>{
+  const member={role:'special_access',projectIds:['p']};
+  assert.equal(eligibleLead(member,'p',{visibility:'public',status:'draft'}),true);
+  assert.equal(eligibleLead(member,'other',{visibility:'public',status:'draft'}),false);
+  assert.equal(eligibleLead(member,'p',{visibility:'public',status:'proposed'}),false);
+});

@@ -33,7 +33,7 @@ const { doc, collection, setDoc, getDoc, getDocs, query, where, updateDoc, write
       }
     });
     for (const status of ['draft', 'proposed', 'active', 'closed']) {
-      await assertSucceeds(getDoc(doc(visitor, path(`public-${status}`))));
+      await (status === 'draft' ? assertFails : assertSucceeds)(getDoc(doc(visitor, path(`public-${status}`))));
       await assertFails(getDoc(doc(visitor, path(`private-${status}`))));
       await assertFails(updateDoc(doc(visitor, path(`public-${status}`)), { title: 'Unauthorized edit' }));
     }
@@ -42,7 +42,7 @@ const { doc, collection, setDoc, getDoc, getDocs, query, where, updateDoc, write
     await assertFails(getDocs(collection(visitor, `${root}/projects`)));
     await assertFails(getDocs(collection(visitor, path('public-draft'), 'notes')));
     await assertFails(getDocs(collection(visitor, path('public-draft'), 'history')));
-    console.log('PASS: public direct links work at every stage; confidential briefs, edits, notes and history stay protected');
+    console.log('PASS: public direct links work after Draft; confidential briefs, edits, notes and history stay protected');
     const editor = env.authenticatedContext('editor1').firestore();
     const viewer = env.authenticatedContext('viewer1').firestore();
     await seedDraft('valid');

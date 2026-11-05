@@ -10,7 +10,8 @@ function fixture(){
     [`${root}/members/admin1`,{role:'admin'}],
     [`${root}/members/user1`,{role:'viewer'}],
     [`${root}/projects/confidential`,{visibility:'private'}],
-    [`${root}/projects/public`,{visibility:'public'}],
+    [`${root}/projects/public`,{visibility:'public',status:'proposed'}],
+    [`${root}/projects/draft`,{visibility:'public',status:'draft'}],
   ]);
   const snapshot=path=>({exists:records.has(path),get:key=>records.get(path)?.[key],data:()=>records.get(path)});
   const doc=path=>({path,get:async()=>snapshot(path),set:async data=>records.set(path,data),delete:async()=>records.delete(path)});
@@ -60,4 +61,12 @@ test('Special Access invitation assignments survive acceptance and resending',as
   const member=records.get(`${root}/members/new-user`);
   assert.equal(member.role,'special_access');
   assert.deepEqual(member.projectIds,['confidential']);
+});
+
+test('administrators can assign public drafts through role changes and invitations',async()=>{
+  const {api,records,root,request}=fixture();
+  await api.changeMemberRole(request({uid:'user1',role:'special_access',projectIds:['draft','confidential']}));
+  assert.deepEqual(records.get(`${root}/members/user1`).projectIds,['draft','confidential']);
+  await api.inviteMember(request({email:'draft@example.com',role:'special_access',projectIds:['draft']}));
+  assert.deepEqual(records.get(`${root}/invitations/${inviteId('draft@example.com')}`).projectIds,['draft']);
 });

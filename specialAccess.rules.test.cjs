@@ -24,7 +24,7 @@ test('Special Access confines edits, notes, lifecycle and uploads to assigned co
     const special=env.authenticatedContext('special');const db=special.firestore();
     // Both the portfolio query and direct requests enforce assignments.
     await assertFails(getDocs(collection(db,`${root}/projects`)));
-    await assertSucceeds(getDocs(query(collection(db,`${root}/projects`),where('visibility','==','public'))));
+    await assertSucceeds(getDocs(query(collection(db,`${root}/projects`),where('visibility','==','public'),where('status','in',['proposed','active','closed']))));
     for(const id of ['assigned','public','closed','archived','draft'])await assertSucceeds(getDoc(doc(db,path(id))));
     await assertFails(getDoc(doc(db,path('other'))));
     await assertFails(getDocs(collection(db,`${path('other')}/attachments`)));
@@ -75,5 +75,60 @@ test('Special Access confines edits, notes, lifecycle and uploads to assigned co
     await assertFails(getDocs(collection(db,`${path('assigned')}/history`)));
     await assertFails(getBytes(ref(special.storage(),`${path('assigned')}/attachments/seed/file`)));
     await assertSucceeds(getDoc(doc(db,path('public'))));
+  } finally {await env.cleanup();}
+});
+
+test('assigned public drafts permit editing, notes and attachments; unassigned drafts and revoked access stay restricted',async()=>{
+  const env=await initializeTestEnvironment({projectId:'demo-special-access',
+    firestore:{host:'127.0.0.1',port:8080,rules:fs.readFileSync('firestore.rules','utf8')},
+    storage:{host:'127.0.0.1',port:9199,rules:fs.readFileSync('storage.rules','utf8')}});
+  const root='organizations/draft-access';
+  const path=id=>`${root}/projects/${id}`;
+  try {
+    await env.withSecurityRulesDisabled(async ctx=>{
+      const db=ctx.firestore();
+      await setDoc(doc(db,`${root}/members/special`),{role:'special_access',projectIds:['assigned']});
+      await setDoc(doc(db,`${root}/members/inactive`),{role:'special_access',status:'inactive',projectIds:['assigned']});
+      await setDoc(doc(db,`${root}/members/editor`),{role:'editor'});
+      for(const id of ['assigned','other','proposed']){
+        await setDoc(doc(db,path(id)),{title:id,visibility:'public',status:id==='proposed'?'proposed':'draft'});
+        await uploadBytes(ref(ctx.storage(),`${path(id)}/attachments/seed/file`),new Uint8Array([1]),{contentType:'application/pdf'});
+      }
+    });
+    const special=env.authenticatedContext('special');const db=special.firestore();
+    const anonymous=env.unauthenticatedContext();
+    const inactive=env.authenticatedContext('inactive');
+    const patch={title:'Updated draft',projectLeadUid:'special',updatedBy:'special',updatedAt:serverTimestamp()};
+    await assertSucceeds(getDoc(doc(db,path('assigned'))));
+    await assertSucceeds(updateDoc(doc(db,path('assigned')),patch));
+    await assertFails(updateDoc(doc(db,path('other')),patch));
+    await assertFails(getDoc(doc(db,path('other'))));
+    await assertFails(getDoc(doc(anonymous.firestore(),path('assigned'))));
+    await assertFails(getDoc(doc(inactive.firestore(),path('assigned'))));
+    await assertSucceeds(getDocs(query(collection(db,`${root}/projects`),where('visibility','==','public'),where('status','in',['proposed','active','closed']))));
+    await assertFails(getDocs(query(collection(db,`${root}/projects`),where('visibility','==','public'))));
+    for(const id of ['assigned','other']) {
+      const allowed=id==='assigned'?assertSucceeds:assertFails;
+      await allowed(getDocs(collection(db,`${path(id)}/history`)));
+      await allowed(getDocs(collection(db,`${path(id)}/attachments`)));
+      await allowed(getDocs(collection(db,`${path(id)}/notes`)));
+      await allowed(setDoc(doc(db,`${path(id)}/notes/new`),{body:'Draft comment',editorUid:'special',editorName:'Special User',editedAt:serverTimestamp()}));
+      await allowed(getBytes(ref(special.storage(),`${path(id)}/attachments/seed/file`)));
+      await allowed(uploadBytes(ref(special.storage(),`${path(id)}/attachments/new/file`),new Uint8Array([1]),{contentType:'application/pdf',contentDisposition:'attachment'}));
+    }
+    await assertFails(getBytes(ref(anonymous.storage(),`${path('assigned')}/attachments/seed/file`)));
+    await env.withSecurityRulesDisabled(ctx=>updateDoc(doc(ctx.firestore(),`${root}/members/special`),{projectIds:[]}));
+    await assertFails(getDoc(doc(db,path('assigned'))));
+    await assertFails(updateDoc(doc(db,path('assigned')),patch));
+    await assertFails(getDocs(collection(db,`${path('assigned')}/notes`)));
+    await assertFails(getBytes(ref(special.storage(),`${path('assigned')}/attachments/seed/file`)));
+    await env.withSecurityRulesDisabled(async ctx=>{
+      await updateDoc(doc(ctx.firestore(),`${root}/members/special`),{projectIds:['assigned']});
+      await updateDoc(doc(ctx.firestore(),path('assigned')),{status:'proposed'});
+    });
+    await assertSucceeds(getDoc(doc(db,path('assigned'))));
+    await assertFails(updateDoc(doc(db,path('assigned')),patch));
+    await assertFails(getDocs(collection(db,`${path('assigned')}/notes`)));
+    await assertFails(uploadBytes(ref(special.storage(),`${path('assigned')}/attachments/promoted/file`),new Uint8Array([1]),{contentType:'application/pdf',contentDisposition:'attachment'}));
   } finally {await env.cleanup();}
 });
