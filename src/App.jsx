@@ -1,3 +1,4 @@
+import { normalizeSteps, localDate } from "./nextSteps.js";
 import LeadContact from "./LeadContact";
 import ProjectNavigation from "./ProjectNavigation.jsx";
 import { loadPortfolio } from "./loadPortfolio";
@@ -718,6 +719,21 @@ const cleanRows = (rows, columns) =>
     .filter((row) => columns.some((key) => row[key]));
 const sameRows = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
 
+function NextStepsEditor() {
+  const form = Form.useFormInstance();
+  return <Form.List name="nextStepsTable">{(fields, { add, remove }) => <Space direction="vertical" style={{ width: "100%" }}>
+    {fields.map(({ key, name }) => <div key={key} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "start" }}>
+      <Form.Item name={[name, "action"]} rules={[{ max: 500 }]} style={{ flex: "2 1 240px", marginBottom: 4 }}><Input aria-label="Next step action" placeholder="Action" maxLength={500} /></Form.Item>
+      <Form.Item name={[name, "owner"]} rules={[{ max: 160 }]} style={{ flex: "1 1 150px", marginBottom: 4 }}><Input aria-label="Next step owner" placeholder="Owner" maxLength={160} /></Form.Item>
+      <Form.Item name={[name, "expectedDate"]} label="Expected completion" style={{ marginBottom: 4 }}><Input type="date" aria-label="Expected completion" /></Form.Item>
+      <Form.Item name={[name, "completed"]} valuePropName="checked" style={{ marginBottom: 4 }}><Checkbox onChange={event => form.setFieldValue(["nextStepsTable", name, "completedDate"], event.target.checked ? localDate() : "")}>Done</Checkbox></Form.Item>
+      <Form.Item name={[name, "completedDate"]} hidden><Input /></Form.Item>
+      <Button danger onClick={() => remove(name)}>Remove</Button>
+    </div>)}
+    {fields.length < 30 && <Button onClick={() => add({ completed: false })}>+ Add next step</Button>}
+  </Space>}</Form.List>;
+}
+
 function RowEditor({ name, columns }) {
   return (
     <Form.List name={name}>
@@ -939,7 +955,7 @@ function Project({ user }) {
         project.assumptionsTable ||
         legacyRows(project.assumptions, "assumptions"),
       nextStepsTable:
-        project.nextStepsTable || legacyRows(project.nextSteps, "nextSteps"),
+        normalizeSteps(project.nextStepsTable || legacyRows(project.nextSteps, "nextSteps")),
     });
     setEditing(true);
   };
@@ -961,16 +977,13 @@ function Project({ user }) {
       "assumption",
       "status",
     ]);
-    const nextStepsTable = cleanRows(values.nextStepsTable, [
-      "action",
-      "owner",
-    ]);
+    const nextStepsTable = normalizeSteps(values.nextStepsTable);
     const progressKeys = ["accomplishments", "decisionsNeeded"];
     const progressChanged =
       progressKeys.some((key) => fields[key] !== (project[key] || "")) ||
       !sameRows(
         nextStepsTable,
-        project.nextStepsTable || legacyRows(project.nextSteps, "nextSteps"),
+        normalizeSteps(project.nextStepsTable || legacyRows(project.nextSteps, "nextSteps")),
       ) ||
       !sameRows(
         assumptionsTable,
@@ -1303,23 +1316,7 @@ function Project({ user }) {
                       Next steps and owners
                     </Typography.Text>
                     <div style={{ marginTop: 8 }}>
-                      <RowEditor
-                        name="nextStepsTable"
-                        columns={[
-                          {
-                            key: "action",
-                            title: "Action",
-                            max: 500,
-                            width: 340,
-                          },
-                          {
-                            key: "owner",
-                            title: "Owner",
-                            max: 160,
-                            width: 200,
-                          },
-                        ]}
-                      />
+                      <NextStepsEditor />
                     </div>
                   </div>
                 )}

@@ -78,3 +78,19 @@
     print-color-adjust:exact;-webkit-print-color-adjust:exact;
   }
 }
+
+/* Preserve the existing half-page area: status is narrow, owner and date share a cell. */
+.brief-steps-heading{display:flex;align-items:baseline;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.brief-steps-filter{font-size:10px;color:var(--muted);white-space:nowrap}
+.brief-steps-filter input{vertical-align:middle;margin:0 3px 0 0}
+.brief-steps-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.92em}
+.brief-steps-table th{text-align:left;border-bottom:1px solid #bbb;padding:4px 5px 4px 0}
+.brief-steps-table td{vertical-align:top;border-bottom:1px solid #eee;padding:4px 5px 4px 0;overflow-wrap:anywhere}
+.brief-steps-table th:first-child{width:18px}
+.brief-steps-table th:last-child{width:36%}
+.brief-step-check{display:inline-block;width:11px;height:11px;border:1px solid currentColor;font-size:10px;line-height:9px;text-align:center}
+.brief-step-completed{color:#65717a}
+.brief-step-date{font-size:.9em;color:var(--muted)}
+.brief-step-overdue{font-size:.9em;color:#b42318;font-weight:700}
+@media screen{.brief-hide-completed .brief-step-completed{display:none}}
+@media print{.brief-steps-filter{display:none!important}.brief-steps-table tr{break-inside:avoid}}
