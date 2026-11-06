@@ -112,6 +112,29 @@ service cloud.firestore {
         allow get: if settingId == 'email' && isOrgAdmin(orgId);
         allow list, create, update, delete: if false;
       }
+      // Each active admin owns a private working portfolio update.
+      match /portfolioUpdates/{uid} {
+        function ownsDraft() { return isOrgAdmin(orgId) && request.auth.uid == uid; }
+        allow get: if ownsDraft();
+        allow create, update: if ownsDraft()
+          && request.resource.data.keys().hasOnly(['statuses', 'includeConfidential', 'excluded', 'updatedAt'])
+          && request.resource.data.statuses is list
+          && request.resource.data.statuses.size() <= 4
+          && request.resource.data.statuses.hasOnly(['active', 'proposed', 'draft', 'closed'])
+          && request.resource.data.includeConfidential is bool
+          && request.resource.data.excluded is list && request.resource.data.excluded.size() <= 1000
+          && request.resource.data.updatedAt == request.time;
+        allow list, delete: if false;
+        match /entries/{projectId} {
+          allow get, list: if ownsDraft();
+          allow create, update: if ownsDraft()
+            && request.resource.data.keys().hasOnly(['insights', 'recommendation', 'reviewedAt'])
+            && request.resource.data.insights is string && request.resource.data.insights.size() <= 10000
+            && request.resource.data.recommendation is string && request.resource.data.recommendation.size() <= 10000
+            && request.resource.data.reviewedAt is string && request.resource.data.reviewedAt.size() <= 40;
+          allow delete: if ownsDraft();
+        }
+      }
       match /projects/{projectId} {
         // Public drafts expose titles only through the publicPortfolio callable.
         allow get: if (resource.data.visibility == 'public' && resource.data.status != 'draft') || canReadMemberProject(orgId, projectId);

@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test functions/membershipPolicy.test.js functions/noteNotificationService.test.js src/projectPresentation.test.js src/attachmentPolicy.test.js src/recentComments.test.js src/projectAccess.test.js functions/membershipAdminSpecialAccess.test.js src/projectNavigation.test.js src/nextSteps.test.js functions/portfolioPolicy.test.js",
+    "test": "node --test functions/membershipPolicy.test.js functions/noteNotificationService.test.js src/projectPresentation.test.js src/attachmentPolicy.test.js src/recentComments.test.js src/projectAccess.test.js functions/membershipAdminSpecialAccess.test.js src/projectNavigation.test.js src/nextSteps.test.js functions/portfolioPolicy.test.js src/portfolioUpdate.test.js",
     "test:rules": "node --test lifecycle.rules.test.cjs ux.rules.test.cjs",
     "test:attachments": "node --test attachments.rules.test.cjs",
-    "test:special-access": "node --test specialAccess.rules.test.cjs"
+    "test:special-access": "node --test specialAccess.rules.test.cjs",
+    "test:portfolio-update": "node --test portfolioUpdate.rules.test.cjs"
   },
   "dependencies": {
     "@ant-design/v5-patch-for-react-19": "^1.0.3",

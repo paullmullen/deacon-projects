@@ -1,3 +1,4 @@
+import PortfolioUpdate from "./PortfolioUpdate.jsx";
 import { normalizeSteps, localDate } from "./nextSteps.js";
 import LeadContact from "./LeadContact";
 import ProjectNavigation from "./ProjectNavigation.jsx";
@@ -418,6 +419,7 @@ function Dashboard({ user }) {
               { value: "title", label: "Project title (A–Z)" },
             ]} />
         </Space>
+        {role === "admin" && user && <PortfolioUpdate key={`${orgId}/${user.uid}`} orgId={orgId} user={user} projects={current} disabled={fetching || ordering || !!error} />}
         {isMember && (
           <Button disabled={ordering} onClick={() => { setReviewStatuses([]); setReviewNotes(false); setReviewOpen(true); }}>
             Print a Review Package
