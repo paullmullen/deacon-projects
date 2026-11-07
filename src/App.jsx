@@ -1,3 +1,4 @@
+import PortfolioActivity from "./PortfolioActivity.jsx";
 import PortfolioUpdate from "./PortfolioUpdate.jsx";
 import { normalizeSteps, localDate } from "./nextSteps.js";
 import LeadContact from "./LeadContact";
@@ -374,7 +375,7 @@ function Dashboard({ user }) {
           {isMember ? `Member view (${roleLabel(role)})` : "Public view"}
         </Typography.Text>
       </div>
-      <Row gutter={[12, 12]}>
+      {canEdit ? <PortfolioActivity key={`${orgId}/${user?.uid}/${role}`} orgId={orgId} uid={user?.uid} role={role} projects={current} fetching={fetching} /> : <Row gutter={[12, 12]}>
         {statuses
 
           .map((status) => (
@@ -385,7 +386,7 @@ function Dashboard({ user }) {
             </Col>
           ))}
         {(canEdit || role === "special_access") && <RecentCommentsStatistic orgId={orgId} projects={accessible} state={comments} fetching={fetching} />}
-      </Row>
+      </Row>}
       {isMember && orgId === "elmbrook" && (
         <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
           <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 18 }}>
@@ -995,6 +996,13 @@ function Project({ user }) {
     const legacyDeliverables = project.deliverables?.trim()
       ? { deliverables: "" }
       : {};
+    const meaningfulChanged = progressChanged || Object.entries({
+      ...fields, ...presentation, deliverableCategories: selectedDeliverables, visibility: values.visibility,
+    }).some(([key, value]) => {
+      const fallback = Array.isArray(value) ? [] : key === 'deaconRole' ? 'leadership' : '';
+      return JSON.stringify(value ?? fallback) !== JSON.stringify(project[key] ?? fallback);
+    });
+    const briefStamp = meaningfulChanged ? { briefEditedAt: serverTimestamp() } : {};
     const progressStamp = progressChanged
       ? { progressEditedAt: serverTimestamp() }
       : {};
@@ -1007,6 +1015,7 @@ function Project({ user }) {
         nextStepsTable,
         ...legacyDeliverables,
         ...progressStamp,
+        ...briefStamp,
         visibility: values.visibility,
         updatedAt: serverTimestamp(), updatedBy: user.uid,
       });
@@ -1019,6 +1028,7 @@ function Project({ user }) {
         nextStepsTable,
         ...legacyDeliverables,
         ...(progressChanged ? { progressEditedAt: new Date() } : {}),
+        ...(meaningfulChanged ? { briefEditedAt: new Date() } : {}),
         visibility: values.visibility,
       }));
       setEditing(false);
