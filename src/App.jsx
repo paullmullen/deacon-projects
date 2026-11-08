@@ -1,3 +1,4 @@
+import ProjectSpecialAccess from "./ProjectSpecialAccess.jsx";
 import DeaconMeetings from "./DeaconMeetings.jsx";
 import PortfolioActivity from "./PortfolioActivity.jsx";
 import PortfolioUpdate from "./PortfolioUpdate.jsx";
@@ -1453,6 +1454,9 @@ function Project({ user }) {
         </Card>
       ) : (
         <>
+          {canEdit && (project.visibility === "private" || project.status === "draft") && (
+            <ProjectSpecialAccess key={`${orgId}/${projectId}/${user?.uid}`} orgId={orgId} projectId={projectId} />
+          )}
           <ProjectBrief orgId={orgId} projectId={project.id || projectId} project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file,message)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
           {attachmentState.error && <Alert type="error" message="Attachments could not be loaded" description={attachmentState.error} />}
           {canReadNotes && (

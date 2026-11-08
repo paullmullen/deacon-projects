@@ -94,3 +94,5 @@
 .brief-step-overdue{font-size:.9em;color:#b42318;font-weight:700}
 @media screen{.brief-hide-completed .brief-step-completed{display:none}}
 @media print{.brief-steps-filter{display:none!important}.brief-steps-table tr{break-inside:avoid}}
+
+@media print { .project-special-access { display: none !important; } }

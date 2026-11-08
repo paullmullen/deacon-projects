@@ -32,6 +32,33 @@ exports.listProjectLeads = onCall({region:'us-central1',invoker:'public'}, async
   }
   return {leads:leads.sort((a,b)=>a.name.localeCompare(b.name)||a.uid.localeCompare(b.uid))};
 });
+exports.listProjectSpecialAccess = onCall({region:'us-central1', invoker:'public'}, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const {orgId, projectId} = request.data || {};
+  if (!validOrg(orgId) || !validUid(projectId)) throw new HttpsError('invalid-argument', 'Invalid project.');
+  const org = getFirestore().collection('organizations').doc(orgId);
+  const members = org.collection('members');
+  const [caller, project] = await Promise.all([
+    members.doc(request.auth.uid).get(),
+    org.collection('projects').doc(projectId).get(),
+  ]);
+  const restricted = project.get('visibility') === 'private' || project.get('status') === 'draft';
+  const role = caller.get('role');
+  const scoped = restricted && role === 'special_access' && (caller.get('projectIds') || []).includes(projectId);
+  if (!caller.exists || caller.get('status') === 'inactive' || !project.exists ||
+      project.get('status') === 'closed' || project.get('archived') ||
+      (!['admin', 'editor'].includes(role) && !scoped)) {
+    throw new HttpsError('permission-denied', 'Project edit access required.');
+  }
+  if (!restricted) return {names: []};
+  const assigned = await members.where('projectIds', 'array-contains', projectId).get();
+  const names = assigned.docs
+    .filter(member => member.get('role') === 'special_access' && member.get('status') !== 'inactive')
+    .map(member => member.get('displayName')?.trim() || 'Unnamed member')
+    .sort((a, b) => a.localeCompare(b));
+  return {names};
+});
+
 exports.notifyProjectNote = onDocumentCreated({
   document:'organizations/{orgId}/projects/{projectId}/notes/{noteId}',
   region:'us-central1', secrets:emailSecrets, retry:true,
