@@ -1,3 +1,6 @@
+import ProjectSpecialAccess from "./ProjectSpecialAccess.jsx";
+import DeaconMeetings from "./DeaconMeetings.jsx";
+import PortfolioActivity from "./PortfolioActivity.jsx";
 import PortfolioUpdate from "./PortfolioUpdate.jsx";
 import { normalizeSteps, localDate } from "./nextSteps.js";
 import LeadContact from "./LeadContact";
@@ -370,29 +373,10 @@ function Dashboard({ user }) {
           {org.name || orgId}
         </Typography.Title>
         <Typography.Text type="secondary">
-          Project Portfolio ·{" "}
+          Deacon Portal ·{" "}
           {isMember ? `Member view (${roleLabel(role)})` : "Public view"}
         </Typography.Text>
       </div>
-      <Row gutter={[12, 12]}>
-        {statuses
-
-          .map((status) => (
-            <Col xs={12} sm={6} lg={{ flex: "1 1 0" }} key={status}>
-              <Card size="small">
-                <Statistic title={statusLabel(status)} value={count(status)} />
-              </Card>
-            </Col>
-          ))}
-        {(canEdit || role === "special_access") && <RecentCommentsStatistic orgId={orgId} projects={accessible} state={comments} fetching={fetching} />}
-      </Row>
-      {isMember && orgId === "elmbrook" && (
-        <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
-          <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 18 }}>
-            Open Capital Budget ↗
-          </a>
-        </div>
-      )}
       {role === "admin" && (
         <div style={{ textAlign: "right" }}>
           <Link to={`/org/${orgId}/admin/users`}>
@@ -401,6 +385,40 @@ function Dashboard({ user }) {
         </div>
       )}
       <MembershipStatus orgId={orgId} user={user} role={role} />
+      {isMember && orgId === "elmbrook" && (
+        <section aria-labelledby="dashboard-budget">
+          <Typography.Title level={2} id="dashboard-budget">Budget</Typography.Title>
+          <Card size="small">
+            <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer">
+              Open Capital Budget ↗
+            </a>
+          </Card>
+        </section>
+      )}
+      <section aria-labelledby="dashboard-meetings" style={{ borderTop: "1px solid #d9d9d9", paddingTop: 20 }}>
+        <Typography.Title level={2} id="dashboard-meetings">Meeting Agendas</Typography.Title>
+        <DeaconMeetings key={`${orgId}/${user?.uid || "public"}/${role || "public"}/${(projectIds || []).join(",")}`} orgId={orgId} role={role} projects={accessible} />
+      </section>
+      <Typography.Title level={2} style={{ borderTop: "1px solid #d9d9d9", paddingTop: 20, margin: 0 }}>
+        Projects
+      </Typography.Title>
+      {canEdit ? (
+        <PortfolioActivity key={`${orgId}/${user?.uid}/${role}`} orgId={orgId} uid={user?.uid} role={role}
+          projects={current} fetching={fetching} />
+      ) : (
+        <Row gutter={[12, 12]}>
+          {statuses
+
+            .map((status) => (
+              <Col xs={12} sm={6} lg={{ flex: "1 1 0" }} key={status}>
+                <Card size="small">
+                  <Statistic title={statusLabel(status)} value={count(status)} />
+                </Card>
+              </Col>
+            ))}
+          {role === "special_access" && <RecentCommentsStatistic orgId={orgId} projects={accessible} state={comments} fetching={fetching} />}
+        </Row>
+      )}
       <div style={{ borderTop: "1px solid #d9d9d9", marginTop: 6, paddingTop: 24, display: "flex", justifyContent: "center" }}>
         <Space wrap style={{ justifyContent: "center" }}>
         <Input.Search
@@ -995,6 +1013,13 @@ function Project({ user }) {
     const legacyDeliverables = project.deliverables?.trim()
       ? { deliverables: "" }
       : {};
+    const meaningfulChanged = progressChanged || Object.entries({
+      ...fields, ...presentation, deliverableCategories: selectedDeliverables, visibility: values.visibility,
+    }).some(([key, value]) => {
+      const fallback = Array.isArray(value) ? [] : key === 'deaconRole' ? 'leadership' : '';
+      return JSON.stringify(value ?? fallback) !== JSON.stringify(project[key] ?? fallback);
+    });
+    const briefStamp = meaningfulChanged ? { briefEditedAt: serverTimestamp() } : {};
     const progressStamp = progressChanged
       ? { progressEditedAt: serverTimestamp() }
       : {};
@@ -1007,6 +1032,7 @@ function Project({ user }) {
         nextStepsTable,
         ...legacyDeliverables,
         ...progressStamp,
+        ...briefStamp,
         visibility: values.visibility,
         updatedAt: serverTimestamp(), updatedBy: user.uid,
       });
@@ -1019,6 +1045,7 @@ function Project({ user }) {
         nextStepsTable,
         ...legacyDeliverables,
         ...(progressChanged ? { progressEditedAt: new Date() } : {}),
+        ...(meaningfulChanged ? { briefEditedAt: new Date() } : {}),
         visibility: values.visibility,
       }));
       setEditing(false);
@@ -1427,6 +1454,9 @@ function Project({ user }) {
         </Card>
       ) : (
         <>
+          {canEdit && (project.visibility === "private" || project.status === "draft") && (
+            <ProjectSpecialAccess key={`${orgId}/${projectId}/${user?.uid}`} orgId={orgId} projectId={projectId} />
+          )}
           <ProjectBrief orgId={orgId} projectId={project.id || projectId} project={project} attachments={attachmentState.files.filter(file=>file.status === "ready")} onDownloadAttachment={file=>downloadAttachment(orgId,projectId,file,message)} notes={canReadNotes ? printNotes : null} orgName={org?.name || "Deacons"} />
           {attachmentState.error && <Alert type="error" message="Attachments could not be loaded" description={attachmentState.error} />}
           {canReadNotes && (

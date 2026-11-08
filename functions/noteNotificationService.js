@@ -82,7 +82,7 @@ function createNoteNotifier({db, auth, sendEmail, timestamp, logger, appUrl}) {
     }
   };
 }
-const auditOnlyKeys = new Set(['updatedAt','updatedBy','priority','lastEventId','progressEditedAt']);
+const auditOnlyKeys = new Set(['updatedAt','updatedBy','priority','lastEventId','progressEditedAt','briefEditedAt']);
 function createProjectEditNotifier(dependencies) {
   const notify = createNoteNotifier(dependencies);
   return async ({orgId,projectId,eventId,before,after}) => {

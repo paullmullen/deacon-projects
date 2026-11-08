@@ -135,6 +135,21 @@ service cloud.firestore {
           allow delete: if ownsDraft();
         }
       }
+      match /deaconMeetings/{meetingId} {
+        // The callable filters agenda references against current project access.
+        allow read: if false;
+        allow delete: if isOrgAdmin(orgId);
+        allow create, update: if isOrgAdmin(orgId)
+          && request.resource.data.keys().hasOnly(['startsAt', 'endsAt', 'location', 'agenda'])
+          && request.resource.data.startsAt is timestamp
+          && request.resource.data.endsAt is timestamp
+          && request.resource.data.endsAt > request.resource.data.startsAt
+          && request.resource.data.location is string
+          && request.resource.data.location.size() > 0
+          && request.resource.data.location.size() <= 250
+          && request.resource.data.agenda is list
+          && request.resource.data.agenda.size() <= 30;
+      }
       match /projects/{projectId} {
         // Public drafts expose titles only through the publicPortfolio callable.
         allow get: if (resource.data.visibility == 'public' && resource.data.status != 'draft') || canReadMemberProject(orgId, projectId);
@@ -155,9 +170,10 @@ service cloud.firestore {
           && resource.data.get('archived', false) == false
           && validTitle(request.resource.data)
           && validDashboardFields(request.resource.data)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','visibility','updatedAt','progressEditedAt','assumptionsTable','nextStepsTable','deliverableCategories','supportingDocuments','priority','deaconRole','projectLeadUid','updatedBy','attachmentsEditedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','visibility','updatedAt','progressEditedAt','assumptionsTable','nextStepsTable','deliverableCategories','supportingDocuments','priority','deaconRole','projectLeadUid','updatedBy','attachmentsEditedAt','briefEditedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['projectLeadUid']) || validProjectLead(orgId, request.resource.data, projectId))
           && request.resource.data.visibility in ['private', 'public']
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['briefEditedAt']) || request.resource.data.briefEditedAt == request.time)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['attachmentsEditedAt']) || request.resource.data.attachmentsEditedAt == request.time)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressEditedAt']) || request.resource.data.progressEditedAt == request.time)
           && validBriefFields(request.resource.data);
