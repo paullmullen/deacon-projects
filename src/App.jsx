@@ -371,10 +371,35 @@ function Dashboard({ user }) {
           {org.name || orgId}
         </Typography.Title>
         <Typography.Text type="secondary">
-          Project Portfolio ·{" "}
+          Deacon Portal ·{" "}
           {isMember ? `Member view (${roleLabel(role)})` : "Public view"}
         </Typography.Text>
       </div>
+      {role === "admin" && (
+        <div style={{ textAlign: "right" }}>
+          <Link to={`/org/${orgId}/admin/users`}>
+            <Button>Manage users</Button>
+          </Link>
+        </div>
+      )}
+      <MembershipStatus orgId={orgId} user={user} role={role} />
+      {isMember && orgId === "elmbrook" && (
+        <section aria-labelledby="dashboard-budget">
+          <Typography.Title level={2} id="dashboard-budget">Budget</Typography.Title>
+          <Card size="small">
+            <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer">
+              Open Capital Budget ↗
+            </a>
+          </Card>
+        </section>
+      )}
+      <section aria-labelledby="dashboard-meetings" style={{ borderTop: "1px solid #d9d9d9", paddingTop: 20 }}>
+        <Typography.Title level={2} id="dashboard-meetings">Meeting Agendas</Typography.Title>
+        <DeaconMeetings key={`${orgId}/${user?.uid || "public"}/${role || "public"}/${(projectIds || []).join(",")}`} orgId={orgId} role={role} projects={accessible} />
+      </section>
+      <Typography.Title level={2} style={{ borderTop: "1px solid #d9d9d9", paddingTop: 20, margin: 0 }}>
+        Projects
+      </Typography.Title>
       <Row gutter={[12, 12]}>
         {statuses
 
@@ -387,22 +412,6 @@ function Dashboard({ user }) {
           ))}
         {(canEdit || role === "special_access") && <RecentCommentsStatistic orgId={orgId} projects={accessible} state={comments} fetching={fetching} />}
       </Row>
-      {isMember && orgId === "elmbrook" && (
-        <div style={{ textAlign: "center", marginTop: 14, marginBottom: 18 }}>
-          <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 18 }}>
-            Open Capital Budget ↗
-          </a>
-        </div>
-      )}
-      <DeaconMeetings key={`${orgId}/${user?.uid || "public"}/${role || "public"}/${(projectIds || []).join(",")}`} orgId={orgId} role={role} projects={accessible} />
-      {role === "admin" && (
-        <div style={{ textAlign: "right" }}>
-          <Link to={`/org/${orgId}/admin/users`}>
-            <Button>Manage users</Button>
-          </Link>
-        </div>
-      )}
-      <MembershipStatus orgId={orgId} user={user} role={role} />
       <div style={{ borderTop: "1px solid #d9d9d9", marginTop: 6, paddingTop: 24, display: "flex", justifyContent: "center" }}>
         <Space wrap style={{ justifyContent: "center" }}>
         <Input.Search
