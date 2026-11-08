@@ -170,9 +170,10 @@ service cloud.firestore {
           && resource.data.get('archived', false) == false
           && validTitle(request.resource.data)
           && validDashboardFields(request.resource.data)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','visibility','updatedAt','progressEditedAt','assumptionsTable','nextStepsTable','deliverableCategories','supportingDocuments','priority','deaconRole','projectLeadUid','updatedBy','attachmentsEditedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','shortDescription','longDescription','purpose','leadDeacon','teamMembers','stakeholders','kickoffDate','targetDate','actualDate','expectedOutcome','deliverables','assumptions','barriers','accomplishments','nextSteps','decisionsNeeded','links','projectSponsor','statusNote','scope','nextReviewDate','workingDetails','visibility','updatedAt','progressEditedAt','assumptionsTable','nextStepsTable','deliverableCategories','supportingDocuments','priority','deaconRole','projectLeadUid','updatedBy','attachmentsEditedAt','briefEditedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['projectLeadUid']) || validProjectLead(orgId, request.resource.data, projectId))
           && request.resource.data.visibility in ['private', 'public']
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['briefEditedAt']) || request.resource.data.briefEditedAt == request.time)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['attachmentsEditedAt']) || request.resource.data.attachmentsEditedAt == request.time)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressEditedAt']) || request.resource.data.progressEditedAt == request.time)
           && validBriefFields(request.resource.data);
