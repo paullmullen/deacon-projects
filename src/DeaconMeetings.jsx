@@ -147,27 +147,33 @@ export default function DeaconMeetings({ orgId, role, projects }) {
             Freeform items are public. Linked projects follow the project’s access permissions.
           </Typography.Paragraph>
           <Form.List name="agenda">
-            {(fields, { add, remove }) => (
+            {(fields, { add, move, remove }) => (
               <>
                 {fields.map((field, index) => (
-                  <div key={field.key} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <div key={field.key} style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
                     <Form.Item noStyle shouldUpdate>
                       {() => {
                         const item = form.getFieldValue(["agenda", field.name]);
                         return item?.type === "project" || item?.projectId ? (
                           <Form.Item name={[field.name, "projectId"]} label={`Project ${index + 1}`}
-                            rules={[{ required: true }]} style={{ flex: 1 }}>
+                            rules={[{ required: true }]} style={{ flex: "1 1 160px" }}>
                             <Select showSearch optionFilterProp="label" options={projectOptions} />
                           </Form.Item>
                         ) : (
                           <Form.Item name={[field.name, "text"]} label={`Topic ${index + 1}`}
-                            rules={[{ required: true, whitespace: true }]} style={{ flex: 1 }}>
+                            rules={[{ required: true, whitespace: true }]} style={{ flex: "1 1 160px" }}>
                             <Input maxLength={500} />
                           </Form.Item>
                         );
                       }}
                     </Form.Item>
-                    <Button aria-label={`Remove agenda item ${index + 1}`} onClick={() => remove(field.name)}>Remove</Button>
+                    <Space size={4}>
+                      <Button title="Move up" aria-label={`Move agenda item ${index + 1} up`}
+                        disabled={index === 0} onClick={() => move(index, index - 1)}>↑</Button>
+                      <Button title="Move down" aria-label={`Move agenda item ${index + 1} down`}
+                        disabled={index === fields.length - 1} onClick={() => move(index, index + 1)}>↓</Button>
+                      <Button aria-label={`Remove agenda item ${index + 1}`} onClick={() => remove(field.name)}>Remove</Button>
+                    </Space>
                   </div>
                 ))}
                 <Space wrap>
