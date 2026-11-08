@@ -135,6 +135,21 @@ service cloud.firestore {
           allow delete: if ownsDraft();
         }
       }
+      match /deaconMeetings/{meetingId} {
+        // The callable filters agenda references against current project access.
+        allow read: if false;
+        allow delete: if isOrgAdmin(orgId);
+        allow create, update: if isOrgAdmin(orgId)
+          && request.resource.data.keys().hasOnly(['startsAt', 'endsAt', 'location', 'agenda'])
+          && request.resource.data.startsAt is timestamp
+          && request.resource.data.endsAt is timestamp
+          && request.resource.data.endsAt > request.resource.data.startsAt
+          && request.resource.data.location is string
+          && request.resource.data.location.size() > 0
+          && request.resource.data.location.size() <= 250
+          && request.resource.data.agenda is list
+          && request.resource.data.agenda.size() <= 30;
+      }
       match /projects/{projectId} {
         // Public drafts expose titles only through the publicPortfolio callable.
         allow get: if (resource.data.visibility == 'public' && resource.data.status != 'draft') || canReadMemberProject(orgId, projectId);

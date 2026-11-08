@@ -1,3 +1,4 @@
+import DeaconMeetings from "./DeaconMeetings.jsx";
 import PortfolioUpdate from "./PortfolioUpdate.jsx";
 import { normalizeSteps, localDate } from "./nextSteps.js";
 import LeadContact from "./LeadContact";
@@ -393,6 +394,7 @@ function Dashboard({ user }) {
           </a>
         </div>
       )}
+      <DeaconMeetings key={`${orgId}/${user?.uid || "public"}/${role || "public"}/${(projectIds || []).join(",")}`} orgId={orgId} role={role} projects={accessible} />
       {role === "admin" && (
         <div style={{ textAlign: "right" }}>
           <Link to={`/org/${orgId}/admin/users`}>
