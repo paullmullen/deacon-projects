@@ -18,6 +18,15 @@ function foldLine(line) {
 }
 
 export function meetingCalendar(orgId, meeting, dashboardUrl, now = Date.now()) {
+  const agenda = (meeting.agenda || []).map((item, index) => `${index + 1}. ${item.title ?? item.text}`);
+  const description = [
+    'Agenda',
+    ...(agenda.length ? agenda : ['No agenda items listed.']),
+    '',
+    'Agenda as of the time of this download.  Check the Deacon Project portal for the latest agenda.',
+    'https://deaconprojects.web.app',
+  ].join('\n');
+
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -29,6 +38,7 @@ export function meetingCalendar(orgId, meeting, dashboardUrl, now = Date.now()) 
     `DTEND:${dateStamp(meeting.endsAt)}`,
     'SUMMARY:Deacon Meeting',
     `LOCATION:${escapeText(meeting.location)}`,
+    `DESCRIPTION:${escapeText(description)}`,
     `URL:${dashboardUrl}`,
     'END:VEVENT',
     'END:VCALENDAR',
