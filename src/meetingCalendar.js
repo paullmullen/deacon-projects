@@ -36,7 +36,7 @@ export function meetingCalendar(orgId, meeting, dashboardUrl, now = Date.now()) 
     `DTSTAMP:${dateStamp(now)}`,
     `DTSTART:${dateStamp(meeting.startsAt)}`,
     `DTEND:${dateStamp(meeting.endsAt)}`,
-    'SUMMARY:Deacon Meeting',
+    `SUMMARY:${escapeText(meeting.title || 'Deacon Meeting')}`,
     `LOCATION:${escapeText(meeting.location)}`,
     `DESCRIPTION:${escapeText(description)}`,
     `URL:${dashboardUrl}`,

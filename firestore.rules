@@ -140,7 +140,8 @@ service cloud.firestore {
         allow read: if false;
         allow delete: if isOrgAdmin(orgId);
         allow create, update: if isOrgAdmin(orgId)
-          && request.resource.data.keys().hasOnly(['startsAt', 'endsAt', 'location', 'agenda'])
+          && request.resource.data.keys().hasOnly(['title', 'startsAt', 'endsAt', 'location', 'agenda'])
+          && (!('title' in request.resource.data) || validTitle(request.resource.data))
           && request.resource.data.startsAt is timestamp
           && request.resource.data.endsAt is timestamp
           && request.resource.data.endsAt > request.resource.data.startsAt

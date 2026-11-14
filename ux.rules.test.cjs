@@ -27,6 +27,23 @@ const project = (uid, id = "active") => doc(
   uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore(),
   root, "projects", id,
 );
+
+test("meeting titles allow admin edits, preserve legacy meetings, and reject invalid titles", async () => {
+  const meeting = uid => doc(env.authenticatedContext(uid).firestore(), root, "deaconMeetings", "title-test");
+  const data = {
+    startsAt: new Date("2026-11-20T00:00:00Z"),
+    endsAt: new Date("2026-11-20T02:00:00Z"),
+    location: "Church", agenda: [],
+  };
+  await assertSucceeds(setDoc(meeting("admin"), data));
+  await assertSucceeds(updateDoc(meeting("admin"), { title: "Special Meeting for Budget" }));
+  for (const title of ["", "x".repeat(161), 123, null]) {
+    await assertFails(updateDoc(meeting("admin"), { title }));
+  }
+  for (const uid of ["editor", "viewer", "inactiveEditor"]) {
+    await assertFails(updateDoc(meeting(uid), { title: "Regular Meeting" }));
+  }
+});
 test("editors can save priority, involvement, and existing-schema document links", async () => {
   await assertSucceeds(updateDoc(project("editor"), {
     shortDescription: "", longDescription: "", purpose: "", leadDeacon: "", teamMembers: "",
