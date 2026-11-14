@@ -22,9 +22,10 @@ exports.upcomingDeaconMeetings = onCall({region: 'us-central1', invoker: 'public
     : []);
 
   return {meetings: meetings.docs.map(doc => {
-    const {startsAt, endsAt, location, agenda} = doc.data();
+    const {title, startsAt, endsAt, location, agenda} = doc.data();
     return {
       id: doc.id,
+      title: title || 'Deacon Meeting',
       startsAt: startsAt.toMillis(),
       endsAt: endsAt.toMillis(),
       location,
