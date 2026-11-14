@@ -367,7 +367,7 @@ function Dashboard({ user }) {
   );
 
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+    <div className="dashboard-layout">
       <div>
         <Typography.Title style={{ marginBottom: 4 }}>
           {org.name || orgId}
@@ -377,6 +377,11 @@ function Dashboard({ user }) {
           {isMember ? `Member view (${roleLabel(role)})` : "Public view"}
         </Typography.Text>
       </div>
+      <nav className="dashboard-section-nav" aria-label="Portal sections">
+        {isMember && orgId === "elmbrook" && <a href="#dashboard-budget">Capital Budget</a>}
+        <a href="#dashboard-meetings">Meeting Agendas</a>
+        <a href="#dashboard-projects">Projects</a>
+      </nav>
       {role === "admin" && (
         <div style={{ textAlign: "right" }}>
           <Link to={`/org/${orgId}/admin/users`}>
@@ -387,7 +392,7 @@ function Dashboard({ user }) {
       <MembershipStatus orgId={orgId} user={user} role={role} />
       {isMember && orgId === "elmbrook" && (
         <section aria-labelledby="dashboard-budget">
-          <Typography.Title level={2} id="dashboard-budget">Budget</Typography.Title>
+          <Typography.Title level={2} id="dashboard-budget" className="dashboard-section-heading" tabIndex={-1}>Capital Budget</Typography.Title>
           <Card size="small">
             <a href={capitalBudgetUrl} target="_blank" rel="noopener noreferrer">
               Open Capital Budget ↗
@@ -396,10 +401,10 @@ function Dashboard({ user }) {
         </section>
       )}
       <section aria-labelledby="dashboard-meetings" style={{ borderTop: "1px solid #d9d9d9", paddingTop: 20 }}>
-        <Typography.Title level={2} id="dashboard-meetings">Meeting Agendas</Typography.Title>
+        <Typography.Title level={2} id="dashboard-meetings" className="dashboard-section-heading" tabIndex={-1}>Meeting Agendas</Typography.Title>
         <DeaconMeetings key={`${orgId}/${user?.uid || "public"}/${role || "public"}/${(projectIds || []).join(",")}`} orgId={orgId} role={role} projects={accessible} />
       </section>
-      <Typography.Title level={2} style={{ borderTop: "1px solid #d9d9d9", paddingTop: 20, margin: 0 }}>
+      <Typography.Title level={2} id="dashboard-projects" className="dashboard-section-heading" tabIndex={-1} style={{ borderTop: "1px solid #d9d9d9", paddingTop: 20, margin: 0 }}>
         Projects
       </Typography.Title>
       {canEdit ? (
@@ -597,7 +602,7 @@ function Dashboard({ user }) {
           )}
         </>
       )}
-    </Space>
+    </div>
   );
 }
 
