@@ -10,6 +10,28 @@ import { meetingCalendar } from "./meetingCalendar";
 const listMeetings = httpsCallable(getFunctions(db.app, "us-central1"), "upcomingDeaconMeetings");
 const meetingTime = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" });
 
+function MeetingDateTime({ value, onChange, id }) {
+  const hour = value ? value.hour() % 12 || 12 : 6;
+  const minute = value?.minute() ?? 0;
+  const period = value && value.hour() < 12 ? "AM" : "PM";
+  function changeTime(nextHour, nextMinute, nextPeriod) {
+    onChange(value.hour(nextHour % 12 + (nextPeriod === "PM" ? 12 : 0)).minute(nextMinute).second(0).millisecond(0));
+  }
+  return <Space wrap>
+    <DatePicker id={id} value={value} onChange={date => onChange(date
+      ? date.hour(value?.hour() ?? 18).minute(minute).second(0).millisecond(0) : null)} />
+    <Select aria-label="Hour" disabled={!value} value={hour} style={{ width: 70 }}
+      options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))}
+      onChange={next => changeTime(next, minute, period)} />
+    <Select aria-label="Minute" disabled={!value} value={minute} style={{ width: 70 }}
+      options={Array.from({ length: 60 }, (_, index) => ({ value: index, label: String(index).padStart(2, "0") }))}
+      onChange={next => changeTime(hour, next, period)} />
+    <Select aria-label="AM or PM" disabled={!value} value={period} style={{ width: 80 }}
+      options={[{ value: "AM", label: "AM" }, { value: "PM", label: "PM" }]}
+      onChange={next => changeTime(hour, minute, next)} />
+  </Space>;
+}
+
 function downloadMeeting(orgId, meeting) {
   const dashboardUrl = new URL(`/org/${orgId}`, window.location.origin).href;
   const file = new Blob([meetingCalendar(orgId, meeting, dashboardUrl)], { type: "text/calendar;charset=utf-8" });
@@ -49,9 +71,10 @@ export default function DeaconMeetings({ orgId, role, projects }) {
     form.resetFields();
     form.setFieldsValue(meeting.id ? {
       ...meeting,
+      title: meeting.title || "Deacon Meeting",
       startsAt: dayjs(meeting.startsAt),
       endsAt: dayjs(meeting.endsAt),
-    } : { agenda: [] });
+    } : { title: "Regular Meeting", agenda: [] });
     setEditing(meeting);
   }
 
@@ -59,6 +82,7 @@ export default function DeaconMeetings({ orgId, role, projects }) {
     setSaving(true);
     try {
       const data = {
+        title: values.title.trim(),
         startsAt: Timestamp.fromMillis(values.startsAt.valueOf()),
         endsAt: Timestamp.fromMillis(values.endsAt.valueOf()),
         location: values.location.trim(),
@@ -93,6 +117,7 @@ export default function DeaconMeetings({ orgId, role, projects }) {
       {meetings?.map(meeting => (
         <Card key={meeting.id} size="small" style={{ marginBottom: 8 }}>
           <Space direction="vertical">
+            <Typography.Title level={5} style={{ margin: 0 }}>{meeting.title || "Deacon Meeting"}</Typography.Title>
             <Typography.Text strong>{meetingTime.formatRange(meeting.startsAt, meeting.endsAt)}</Typography.Text>
             <Typography.Text>{meeting.location}</Typography.Text>
             {meeting.agenda.length > 0 && (
@@ -121,11 +146,14 @@ export default function DeaconMeetings({ orgId, role, projects }) {
         onCancel={() => setEditing(null)} onOk={() => form.submit()} okText="Save meeting"
         confirmLoading={saving} keyboard={!saving} closable={!saving} maskClosable={!saving} cancelButtonProps={{ disabled: saving }}>
         <Form form={form} layout="vertical" onFinish={save}>
+          <Form.Item name="title" label="Meeting title" rules={[{ required: true, whitespace: true }]}>
+            <Input maxLength={160} placeholder="Regular Meeting or Special Meeting for…" />
+          </Form.Item>
           <Typography.Paragraph type="secondary">
             Times use your device’s time zone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
           </Typography.Paragraph>
           <Form.Item name="startsAt" label="Starts" rules={[{ required: true }]}>
-            <DatePicker showTime={{ format: "HH:mm" }} />
+            <MeetingDateTime />
           </Form.Item>
           <Form.Item name="endsAt" label="Ends" dependencies={["startsAt"]} rules={[
             { required: true },
@@ -137,7 +165,7 @@ export default function DeaconMeetings({ orgId, role, projects }) {
               },
             }),
           ]}>
-            <DatePicker showTime={{ format: "HH:mm" }} />
+            <MeetingDateTime />
           </Form.Item>
           <Form.Item name="location" label="Location" rules={[{ required: true, whitespace: true }]}>
             <Input maxLength={250} />
