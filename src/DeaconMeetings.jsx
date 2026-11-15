@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, App, Button, Card, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Spin, Typography } from "antd";
+import { Alert, App, Button, Card, DatePicker, Dropdown, Form, Input, Modal, Select, Space, Spin, Typography } from "antd";
 import dayjs from "dayjs";
 import { addDoc, collection, deleteDoc, doc, Timestamp, updateDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -8,7 +8,9 @@ import { db } from "./firebase";
 import { meetingCalendar } from "./meetingCalendar";
 
 const listMeetings = httpsCallable(getFunctions(db.app, "us-central1"), "upcomingDeaconMeetings");
-const meetingTime = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" });
+const meetingTime = new Intl.DateTimeFormat(undefined, {
+  weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+});
 
 function MeetingDateTime({ value, onChange, id }) {
   const hour = value ? value.hour() % 12 || 12 : 6;
@@ -44,7 +46,7 @@ function downloadMeeting(orgId, meeting) {
 }
 
 export default function DeaconMeetings({ orgId, role, projects }) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [form] = Form.useForm();
   const [meetings, setMeetings] = useState(null);
   const [error, setError] = useState(false);
@@ -116,12 +118,31 @@ export default function DeaconMeetings({ orgId, role, projects }) {
       {meetings?.length === 0 && !error && <Typography.Text type="secondary">No upcoming meetings scheduled.</Typography.Text>}
       {meetings?.map(meeting => (
         <Card key={meeting.id} size="small" style={{ marginBottom: 8 }}>
-          <Space direction="vertical">
+          <div className="meeting-row">
+            <div className="meeting-info">
             <Typography.Title level={5} style={{ margin: 0 }}>{meeting.title || "Deacon Meeting"}</Typography.Title>
-            <Typography.Text strong>{meetingTime.formatRange(meeting.startsAt, meeting.endsAt)}</Typography.Text>
-            <Typography.Text>{meeting.location}</Typography.Text>
+            <Typography.Text>{meetingTime.formatRange(meeting.startsAt, meeting.endsAt)} · {meeting.location}</Typography.Text>
+            </div>
+            {canDownload && <Space className="meeting-actions">
+              <Button size="small" onClick={() => downloadMeeting(orgId, meeting)}>Download calendar file</Button>
+              {canManage && <Dropdown trigger={["click"]} menu={{
+                items: [{ key: "edit", label: "Edit" }, { key: "remove", label: "Remove", danger: true }],
+                onClick: ({ key }) => {
+                  if (key === "edit") openEditor(meeting);
+                  else modal.confirm({
+                    title: "Remove this meeting?",
+                    content: meeting.title || "Deacon Meeting",
+                    okText: "Remove", okButtonProps: { danger: true }, cancelText: "Cancel",
+                    onOk: () => remove(meeting.id),
+                  });
+                },
+              }}>
+                <Button size="small" aria-label={`Actions for ${meeting.title || "Deacon Meeting"}`}>⋯</Button>
+              </Dropdown>}
+            </Space>}
+          </div>
             {meeting.agenda.length > 0 && (
-              <details>
+              <details style={{ marginTop: 8 }}>
                 <summary>Agenda</summary>
                 <ol>
                   {meeting.agenda.map((item, index) => (
@@ -132,14 +153,6 @@ export default function DeaconMeetings({ orgId, role, projects }) {
                 </ol>
               </details>
             )}
-            <Space wrap>
-              {canDownload && <Button size="small" onClick={() => downloadMeeting(orgId, meeting)}>Download calendar file</Button>}
-              {canManage && <Button size="small" onClick={() => openEditor(meeting)}>Edit</Button>}
-              {canManage && <Popconfirm title="Remove this meeting?" onConfirm={() => remove(meeting.id)}>
-                <Button size="small" danger>Remove</Button>
-              </Popconfirm>}
-            </Space>
-          </Space>
         </Card>
       ))}
       {canManage && <Modal forceRender open={!!editing} title={editing?.id ? "Edit meeting" : "Add meeting"}
