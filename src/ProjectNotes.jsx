@@ -6,7 +6,7 @@ import MarkdownText from "./MarkdownText";
 import { NotesContent } from "./ProjectNotesContent";
 
 const notesCollection = (orgId, projectId) => collection(db, "organizations", orgId, "projects", projectId, "notes");
-const notesQuery = (orgId, projectId) => query(notesCollection(orgId, projectId), orderBy("editedAt", "asc"));
+const notesQuery = (orgId, projectId) => query(notesCollection(orgId, projectId), orderBy("editedAt", "desc"));
 // The original notes/current document is included as an immutable historical note.
 export async function loadProjectNotes(orgId, projectId) {
   const snapshot = await getDocs(notesQuery(orgId, projectId));
