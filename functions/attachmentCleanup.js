@@ -5,7 +5,7 @@ exports.cleanupProjectAttachment = onDocumentDeleted({
   document:'organizations/{orgId}/projects/{projectId}/attachments/{attachmentId}',region:'us-central1',retry:true,
 },async event=>{
   const {orgId,projectId,attachmentId}=event.params;
-  await getStorage().bucket().file(`organizations/${orgId}/projects/${projectId}/attachments/${attachmentId}/file`).delete({ignoreNotFound:true});
+  await getStorage().bucket().deleteFiles({prefix:`organizations/${orgId}/projects/${projectId}/attachments/${attachmentId}/`,force:true});
 });
 exports.cleanupDeletedProjectFiles = onDocumentDeleted({
   document:'organizations/{orgId}/projects/{projectId}',region:'us-central1',retry:true,

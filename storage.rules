@@ -34,5 +34,20 @@ service firebase.storage {
       // Deleting metadata schedules server-side file deletion.
       allow list, update, delete: if false;
     }
+    match /organizations/{orgId}/projects/{projectId}/attachments/{attachmentId}/versions/{versionId}/file {
+      allow get: if readable(orgId,projectId);
+      allow create: if resource == null && request.auth != null && editable(orgId,projectId)
+        && request.resource.size > 0 && request.resource.size <= 26214400
+        && request.resource.contentDisposition == 'attachment'
+        && request.resource.contentType in [
+          'application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'text/plain','text/csv','image/png','image/jpeg'
+        ];
+      // No public token URLs, object replacement, bucket listing or direct client deletion.
+      // Deleting metadata schedules server-side file deletion.
+      allow list, update, delete: if false;
+    }
   }
 }

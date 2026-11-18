@@ -1,3 +1,4 @@
+import { sortAttachments } from './attachmentPolicy';
 import LeadContact from "./LeadContact";
 import React, { useState } from "react";
 import { orderedSteps, isStepOverdue, shortStepDate } from "./nextSteps.js";
@@ -309,9 +310,9 @@ export default function ProjectBrief({ orgId, projectId, project, notes = null, 
       )}
       {attachments.length > 0 && <section className="brief-block brief-documents">
         <h2>Attached files</h2>
-        {attachments.map(file=><div key={file.id} className="brief-document">
-          {onDownloadAttachment ? <button type="button" className="brief-attachment-download" onClick={()=>onDownloadAttachment(file)}>{file.title || file.name}</button> : <strong>{file.title || file.name}</strong>}
-          {onDownloadAttachment && <strong className="brief-attachment-print-title">{file.title || file.name}</strong>}
+        {sortAttachments(attachments).map(file=><div key={file.id} className="brief-document">
+          {onDownloadAttachment ? <button type="button" className="brief-attachment-download" onClick={()=>onDownloadAttachment(file)}>{file.keyDocument ? '★ ' : ''}{file.title || file.name}</button> : <strong>{file.keyDocument ? '★ ' : ''}{file.title || file.name}</strong>}
+          {onDownloadAttachment && <strong className="brief-attachment-print-title">{file.keyDocument ? '★ ' : ''}{file.title || file.name}</strong>}
           <div>{file.name}</div>
           {file.description && <p>{file.description}</p>}
         </div>)}

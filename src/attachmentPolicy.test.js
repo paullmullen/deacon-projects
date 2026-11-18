@@ -14,3 +14,16 @@ test('storage locations cannot escape the project or use user-supplied filenames
   for(const value of ['../other','path/child','',null])assert.throws(()=>attachmentPath('elmbrook','project1',value));
   assert.equal(attachmentSize(1024),'1 KB');assert.equal(attachmentSize(1048576),'1.0 MB');
 });
+
+test('version paths stay inside the original attachment', async()=>{
+  const {attachmentPath}=await import('./attachmentPolicy.js');
+  assert.equal(attachmentPath('org','project','doc','version2'),'organizations/org/projects/project/attachments/doc/versions/version2/file');
+  assert.throws(()=>attachmentPath('org','project','doc','../other'));
+});
+test('explicit ordering overrides creation order without mutating files', async()=>{
+  const {sortAttachments}=await import('./attachmentPolicy.js');
+  const files=[{id:'old',createdAt:{toMillis:()=>10}},{id:'new',createdAt:{toMillis:()=>20}}];
+  assert.deepEqual(sortAttachments(files).map(file=>file.id),['old','new']);
+  assert.deepEqual(sortAttachments([{...files[0],order:1},{...files[1],order:0}]).map(file=>file.id),['new','old']);
+  assert.equal(files[0].id,'old');
+});

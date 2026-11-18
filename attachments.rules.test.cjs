@@ -71,3 +71,32 @@ test('public attachments follow visibility and draft restrictions',async()=>{
   await assertSucceeds(updateDoc(doc(db,root,'projects','public'),{visibility:'private',updatedAt:serverTimestamp(),updatedBy:'editor'}));
   await assertFails(getBytes(objectRef(null,'public')));
 });
+
+const editBatch=(uid,patch)=>{
+  const db=context(uid).firestore(),batch=writeBatch(db);
+  batch.update(doc(db,root,'projects','private'),{attachmentsEditedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:uid});
+  batch.update(doc(db,root,'projects','private','attachments','document1'),patch);
+  return batch.commit();
+};
+test('document details and ordering require editor access and atomic stamps',async()=>{
+  await assertFails(updateDoc(fileRef('editor'),{description:'No stamp'}));
+  await assertSucceeds(editBatch('editor',{title:'Key reference',description:'Updated description',keyDocument:true,order:0}));
+  await assertFails(editBatch('viewer',{keyDocument:false}));
+  await assertFails(editBatch('inactive',{order:1}));
+  await assertFails(editBatch('editor',{keyDocument:'yes'}));
+  await assertFails(editBatch('editor',{description:'x'.repeat(501)}));
+  await assertFails(editBatch('editor',{uploadedBy:'viewer'}));
+});
+test('replacement versions publish atomically and preserve document details',async()=>{
+  const path=`${root}/projects/private/attachments/document1/versions/version2/file`;
+  await assertSucceeds(uploadBytes(ref(context('editor').storage(),path),new Uint8Array([5,6]),{contentType:'application/pdf',contentDisposition:'attachment'}));
+  await assertFails(uploadBytes(ref(context('editor').storage(),path),new Uint8Array([7]),{contentType:'application/pdf',contentDisposition:'attachment'}));
+  await assertFails(editBatch('viewer',{versionId:'version2',version:2,name:'New.pdf',size:2,contentType:'application/pdf'}));
+  await assertFails(editBatch('editor',{versionId:'../escape',version:2}));
+  await assertFails(editBatch('editor',{versionId:'version2',version:5}));
+  await assertSucceeds(editBatch('editor',{versionId:'version2',version:2,name:'New.pdf',size:2,contentType:'application/pdf'}));
+  const entry=(await getDoc(fileRef('editor'))).data();
+  assert.equal(entry.keyDocument,true);assert.equal(entry.order,0);assert.equal(entry.description,'Updated description');
+  assert.deepEqual([...new Uint8Array(await getBytes(ref(context('viewer').storage(),path)))],[5,6]);
+  await assertFails(getBytes(ref(context(null).storage(),path)));
+});

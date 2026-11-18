@@ -15,12 +15,17 @@ export function validateAttachment(file) {
   if (file.name.length > 240) throw new Error('Please shorten the file name to 240 characters or fewer.');
   return attachmentTypes[extension];
 }
-export function attachmentPath(orgId, projectId, attachmentId) {
-  for (const value of [orgId,projectId,attachmentId]) {
+export function attachmentPath(orgId, projectId, attachmentId, versionId) {
+  for (const value of [orgId,projectId,attachmentId,...(versionId ? [versionId] : [])]) {
     if (typeof value !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(value)) throw new Error('Invalid attachment location.');
   }
-  return `organizations/${orgId}/projects/${projectId}/attachments/${attachmentId}/file`;
+  return `organizations/${orgId}/projects/${projectId}/attachments/${attachmentId}/${versionId ? `versions/${versionId}/` : ""}file`;
 }
 export function attachmentSize(bytes) {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function sortAttachments(files) {
+  const rank = file => Number.isFinite(file.order) ? file.order : (file.createdAt?.toMillis?.() ?? 0);
+  return [...files].sort((a,b)=>rank(a)-rank(b) || (a.createdAt?.toMillis?.() ?? 0)-(b.createdAt?.toMillis?.() ?? 0) || a.id.localeCompare(b.id));
 }

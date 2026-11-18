@@ -1,0 +1,17 @@
+.project-attachments .ant-list-item {
+  align-items: flex-start;
+  gap: 12px;
+}
+.project-attachments .ant-list-item-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-inline-start: 0;
+  width: 100%;
+}
+.project-attachments .ant-list-item-action > li {
+  padding: 0;
+}
+.project-attachments .ant-list-item-action-split {
+  display: none;
+}
