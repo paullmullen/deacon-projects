@@ -23,7 +23,7 @@ export function portfolioTable(projects, entries, orgId, origin) {
   });
   const style = 'border:1px solid #555;padding:8px;vertical-align:top;text-align:left;';
   const header = headings.map(heading =>
-    `<th scope="col" style="${style}background:#245e91;color:white">${heading}</th>`).join('');
+    `<th scope="col" bgcolor="#245e91" style="${style}background-color:#245e91;color:#ffffff"><span style="color:#ffffff">${heading}</span></th>`).join('');
   const body = rows.map(row => {
     const spacer = row.spaceBefore
       ? `<tr aria-hidden="true"><td colspan="${headings.length}" style="height:14px;font-size:14px;line-height:14px;padding:0">&nbsp;</td></tr>`
