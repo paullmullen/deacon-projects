@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, App, Button, Checkbox, Input, Modal, Space, Spin, Typography } from 'antd';
 import { collection, doc, getDoc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
-import { portfolioTable, updateProjects } from './portfolioUpdate.js';
+import { portfolioStatusOptions, portfolioTable, updateProjects } from './portfolioUpdate.js';
 
 export default function PortfolioUpdate({ orgId, user, projects, disabled }) {
   const { message } = App.useApp();
@@ -85,19 +85,30 @@ export default function PortfolioUpdate({ orgId, user, projects, disabled }) {
       {loading ? <Spin /> : error ? <Alert type="error" message={error} /> : <>
         <Typography.Paragraph>Your private working draft. Edit and save here to reuse your commentary next time. Changes made in email do not return to the app.</Typography.Paragraph>
         <Space wrap style={{ marginBottom: 16 }}>
-          <Checkbox.Group value={statuses} options={['active','proposed','draft','closed'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} onChange={value => { setStatuses(value); setDirty(true); }} />
+          <Checkbox.Group value={statuses} options={portfolioStatusOptions} onChange={value => { setStatuses(value); setDirty(true); }} />
           <Checkbox checked={confidential} onChange={e => { setConfidential(e.target.checked); setDirty(true); }}>Include confidential projects</Checkbox>
         </Space>
         {chosen.some(p => p.visibility === 'private') && <Alert type="warning" showIcon message="This table includes confidential projects. Check your email recipients before sending." style={{ marginBottom: 12 }} />}
         <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 850, borderCollapse: 'collapse' }}>
           <thead><tr>{['Include / Project','Confidential','Leader','My Insights','Status / Recommendation'].map(h => <th key={h} style={{ textAlign: 'left', padding: 8 }}>{h}</th>)}</tr></thead>
-          <tbody>{candidates.map(p => <tr key={p.id}>
-            <td style={{ width: '23%', padding: 8, verticalAlign: 'top' }}><Checkbox aria-label={`Include ${p.title}`} checked={!excluded.includes(p.id)} onChange={e => { setExcluded(old => e.target.checked ? old.filter(id => id !== p.id) : [...old, p.id]); setDirty(true); }} /> <a href={`/org/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer">{p.title}</a></td>
-            <td style={{ padding: 8, verticalAlign: 'top' }}>{p.visibility === 'private' ? 'Confidential' : ''}</td>
-            <td style={{ padding: 8, verticalAlign: 'top' }}>{p.leadDeacon || 'Unassigned'}</td>
-            <td style={{ width: '30%', padding: 8, verticalAlign: 'top' }}><Input.TextArea aria-label={`Insights for ${p.title}`} autoSize={{ minRows: 3 }} maxLength={10000} value={entries[p.id]?.insights || ''} onChange={e => edit(p.id, 'insights', e.target.value)} /><Typography.Text type="secondary">{changed.includes(p.id) ? 'Edited — not saved' : entries[p.id]?.reviewedAt ? `Last reviewed ${new Date(entries[p.id].reviewedAt).toLocaleDateString()}` : 'Not yet reviewed'}</Typography.Text><Button size="small" type="link" onClick={() => { edit(p.id, 'insights', ''); edit(p.id, 'recommendation', ''); }}>Clear commentary</Button></td>
-            <td style={{ width: '25%', padding: 8, verticalAlign: 'top' }}><Input.TextArea aria-label={`Recommendation for ${p.title}`} autoSize={{ minRows: 3 }} maxLength={10000} value={entries[p.id]?.recommendation || ''} onChange={e => edit(p.id, 'recommendation', e.target.value)} /></td>
-          </tr>)}</tbody>
+          {portfolioStatusOptions.map(({ value, label }) => {
+            const section = candidates.filter(project => project.status === value);
+            if (!section.length) return null;
+            return <tbody key={value}>
+              <tr>
+                <th scope="rowgroup" colSpan={5} style={{ background: '#f0f5ff', textAlign: 'left', padding: 8 }}>
+                  {label}
+                </th>
+              </tr>
+              {section.map(p => <tr key={p.id}>
+                <td style={{ width: '23%', padding: 8, verticalAlign: 'top' }}><Checkbox aria-label={`Include ${p.title}`} checked={!excluded.includes(p.id)} onChange={e => { setExcluded(old => e.target.checked ? old.filter(id => id !== p.id) : [...old, p.id]); setDirty(true); }} /> <a href={`/org/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer">{p.title}</a></td>
+                <td style={{ padding: 8, verticalAlign: 'top' }}>{p.visibility === 'private' ? 'Confidential' : ''}</td>
+                <td style={{ padding: 8, verticalAlign: 'top' }}>{p.leadDeacon || 'Unassigned'}</td>
+                <td style={{ width: '30%', padding: 8, verticalAlign: 'top' }}><Input.TextArea aria-label={`Insights for ${p.title}`} autoSize={{ minRows: 3 }} maxLength={10000} value={entries[p.id]?.insights || ''} onChange={e => edit(p.id, 'insights', e.target.value)} /><Typography.Text type="secondary">{changed.includes(p.id) ? 'Edited - not saved' : entries[p.id]?.reviewedAt ? `Last reviewed ${new Date(entries[p.id].reviewedAt).toLocaleDateString()}` : 'Not yet reviewed'}</Typography.Text><Button size="small" type="link" onClick={() => { edit(p.id, 'insights', ''); edit(p.id, 'recommendation', ''); }}>Clear commentary</Button></td>
+                <td style={{ width: '25%', padding: 8, verticalAlign: 'top' }}><Input.TextArea aria-label={`Recommendation for ${p.title}`} autoSize={{ minRows: 3 }} maxLength={10000} value={entries[p.id]?.recommendation || ''} onChange={e => edit(p.id, 'recommendation', e.target.value)} /></td>
+              </tr>)}
+            </tbody>;
+          })}
         </table></div>
         {!candidates.length && <Typography.Paragraph>No projects match these selections.</Typography.Paragraph>}
         <details style={{ marginTop: 16 }}><summary>Preview email table ({chosen.length} projects)</summary><div style={{ overflowX: 'auto', marginTop: 12 }} dangerouslySetInnerHTML={{ __html: preview.html }} /></details>

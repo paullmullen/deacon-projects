@@ -1,5 +1,11 @@
 # Backlog
 
+## Keep portfolio update headings readable when pasted into Outlook
+
+Reported November 20, 2026. In Prepare Portfolio Update, use **Save & Copy Table** and paste into an Outlook email draft. The first row retains its blue background, but the column heading text does not appear white. Applying white inline and adding a legacy font-color attribute did not fix the reported paste behavior.
+
+Verify the eventual fix by pasting into Outlook and checking that all five column headings appear white on the blue background.
+
 ## Notify the project lead when a comment / meeting note is added
 
 Requested October 27, 2026. Implemented on `feature/project-lead-notifications`, pending review/deployment. See [Project leads and note notifications](project-lead-notifications.md) for behavior, validation and deployment.
