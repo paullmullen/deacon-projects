@@ -2,12 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, App, Button, Checkbox, Input, Modal, Space, Spin, Typography } from 'antd';
 import { collection, doc, getDoc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
-import { projectStatuses } from './projectPresentation.js';
-import { portfolioTable, updateProjects } from './portfolioUpdate.js';
-
-const statusOptions = projectStatuses.map(value => ({
-  value, label: value[0].toUpperCase() + value.slice(1),
-}));
+import { portfolioStatusOptions, portfolioTable, updateProjects } from './portfolioUpdate.js';
 
 export default function PortfolioUpdate({ orgId, user, projects, disabled }) {
   const { message } = App.useApp();
@@ -90,13 +85,13 @@ export default function PortfolioUpdate({ orgId, user, projects, disabled }) {
       {loading ? <Spin /> : error ? <Alert type="error" message={error} /> : <>
         <Typography.Paragraph>Your private working draft. Edit and save here to reuse your commentary next time. Changes made in email do not return to the app.</Typography.Paragraph>
         <Space wrap style={{ marginBottom: 16 }}>
-          <Checkbox.Group value={statuses} options={statusOptions} onChange={value => { setStatuses(value); setDirty(true); }} />
+          <Checkbox.Group value={statuses} options={portfolioStatusOptions} onChange={value => { setStatuses(value); setDirty(true); }} />
           <Checkbox checked={confidential} onChange={e => { setConfidential(e.target.checked); setDirty(true); }}>Include confidential projects</Checkbox>
         </Space>
         {chosen.some(p => p.visibility === 'private') && <Alert type="warning" showIcon message="This table includes confidential projects. Check your email recipients before sending." style={{ marginBottom: 12 }} />}
         <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 850, borderCollapse: 'collapse' }}>
           <thead><tr>{['Include / Project','Confidential','Leader','My Insights','Status / Recommendation'].map(h => <th key={h} style={{ textAlign: 'left', padding: 8 }}>{h}</th>)}</tr></thead>
-          {statusOptions.map(({ value, label }) => {
+          {portfolioStatusOptions.map(({ value, label }) => {
             const section = candidates.filter(project => project.status === value);
             if (!section.length) return null;
             return <tbody key={value}>
