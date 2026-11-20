@@ -22,8 +22,10 @@ test('table follows dashboard status groups and priority within each group', () 
   ], ['draft','active','proposed'], false);
   assert.deepEqual(rows.map(p=>p.id), ['a1','a2','p','d']);
   const output = portfolioTable(rows, {}, 'org', 'https://example.org');
-  assert.deepEqual([...output.html.matchAll(/colspan="5"[^>]*>(.*?)<\/th>/g)].map(match => match[1]),
+  assert.deepEqual([...output.html.matchAll(/<th colspan="5"[^>]*>([^<]*)<\/th>/g)].map(match => match[1]),
     ['Active', 'Proposed', 'Draft']);
+  assert.deepEqual([...output.html.matchAll(/<tr aria-hidden="true"><td colspan="5"[^>]*>&nbsp;<\/td><\/tr><tr><th[^>]*>([^<]*)<\/th>/g)].map(match => match[1]),
+    ['Proposed', 'Draft']);
   assert.deepEqual(output.text.split('\n').filter(line => !line.includes('\t')),
-    ['Active', 'Proposed', 'Draft']);
+    ['Active', '', 'Proposed', '', 'Draft']);
 });
